@@ -21,8 +21,8 @@ grocery_list.txt
 # In-progress working notes (must be deleted before PR merge)
 tmp/
 
-# Claude Code local state
-.claude/
+# Claude Code local overrides (user-specific, never commit)
+.claude/settings.local.json
 
 # OS / editor noise
 .DS_Store
