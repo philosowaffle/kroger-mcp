@@ -2,8 +2,8 @@
 FROM golang:1.21-alpine AS builder
 WORKDIR /build
 COPY go.mod .
-COPY main.go .
-RUN go build -o kroger-cart .
+COPY cmd/ cmd/
+RUN go build -o kroger-cart ./cmd/kroger-cart/
 
 # ── Runtime stage ─────────────────────────────────────────────────────────────
 FROM alpine:latest

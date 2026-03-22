@@ -1,0 +1,42 @@
+version: "3"
+
+tasks:
+  build:
+    desc: Build the project binary
+    cmds:
+      - go build -o bin/kroger-cart ./cmd/kroger-cart/
+
+  test:
+    desc: Run all unit tests
+    cmds:
+      - go test ./...
+
+  lint:
+    desc: Run golangci-lint
+    cmds:
+      - golangci-lint run
+
+  fmt:
+    desc: Format all Go source files
+    cmds:
+      - go fmt ./...
+
+  vet:
+    desc: Run go vet
+    cmds:
+      - go vet ./...
+
+  docker:build:
+    desc: Build the Docker image
+    cmds:
+      - docker build -t kroger-cart .
+
+  docker:up:
+    desc: Start via docker-compose
+    cmds:
+      - docker-compose up -d
+
+  docker:down:
+    desc: Stop docker-compose
+    cmds:
+      - docker-compose down

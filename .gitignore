@@ -1,13 +1,28 @@
 # Build output
-kroger-cart
-kroger-cart.exe
+bin/
+/kroger-cart
+/kroger-cart.exe
 
 # Runtime files — contain credentials and personal data, never commit these
 config.json
 product_cache.json
+data/
 
 # Grocery list is personal, keep local (optional — remove this line if you want to track it)
 grocery_list.txt
+
+# Task runner cache
+.task/
+
+# Environment files
+*.env
+.env*
+
+# In-progress working notes (must be deleted before PR merge)
+tmp/
+
+# Claude Code local overrides (user-specific, never commit)
+.claude/settings.local.json
 
 # OS / editor noise
 .DS_Store
