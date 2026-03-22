@@ -9,7 +9,11 @@ When the user wants to check or update standards, compare the project's current 
 
 ## Step 1: Read the project's current standards version
 
-Read `CLAUDE.md` and find the `Standards Version` line in the Conventions section. Note the version number.
+Read `CLAUDE.md` and find the `Standards Version` near the top of the file. Note the version number and last sync date.
+
+| Standards Version | Last Synced Date |
+| ----------------- | ---------------- |
+|                   |                  |
 
 ## Step 2: Locate the vault templates
 
@@ -77,7 +81,7 @@ For each approved file:
 - Apply reviewed breaking changes as approved
 - Skip or manually merge conflicts as directed
 
-After all updates, bump the `Standards Version` line in `CLAUDE.md` to match the vault version.
+After all updates, bump the `Standards Version` line in `CLAUDE.md` to match the vault version and current system date.
 
 ## Step 7: Commit the update
 
@@ -89,7 +93,7 @@ git push
 
 ## Step 8: Report
 
-Summarise what was updated, what was skipped, and any conflicts that still need manual resolution.
+Summarize what was updated, what was skipped, and any conflicts that still need manual resolution.
 
 ---
 
