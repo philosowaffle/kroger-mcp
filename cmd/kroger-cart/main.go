@@ -89,7 +89,9 @@ func main() {
 		if err := resolveLocationID(config); err != nil {
 			fatalf("Could not resolve location ID: %v", err)
 		}
-		saveConfig(config)
+		if err := saveConfig(config); err != nil {
+			fatalf("Could not save config: %v", err)
+		}
 	}
 
 	items, err := readGroceryList()
@@ -137,7 +139,9 @@ func main() {
 		added = append(added, item)
 	}
 
-	saveConfig(config)
+	if err := saveConfig(config); err != nil {
+		fatalf("Could not save config: %v", err)
+	}
 
 	fmt.Printf("\n─────────────────────────────────────────────\n")
 	fmt.Printf("✓  %d item(s) added to your cart\n", len(added))
@@ -275,7 +279,7 @@ func doOAuthFlow(cfg *Config) error {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	server.Shutdown(ctx)
+	_ = server.Shutdown(ctx)
 
 	return exchangeCode(cfg, code, verifier)
 }
@@ -398,7 +402,7 @@ func resolveLocationID(cfg *Config) error {
 	input = strings.TrimSpace(input)
 
 	idx := 0
-	fmt.Sscanf(input, "%d", &idx)
+	_, _ = fmt.Sscanf(input, "%d", &idx)
 	if idx < 1 || idx > len(result.Data) {
 		idx = 1
 		fmt.Printf("Invalid selection, using store #1\n")
@@ -520,7 +524,7 @@ func createSampleGroceryList() {
 Bananas
 Kroger 2% Reduced Fat Milk gallon
 `
-	os.WriteFile(groceryFile, []byte(sample), 0644)
+	_ = os.WriteFile(groceryFile, []byte(sample), 0644)
 }
 
 // ── Product cache ─────────────────────────────────────────────────────────────
@@ -542,7 +546,7 @@ func loadCache() map[string]string {
 
 func saveCache(cache map[string]string) {
 	data, _ := json.MarshalIndent(cache, "", "  ")
-	os.WriteFile(cacheFile, data, 0644)
+	_ = os.WriteFile(cacheFile, data, 0644)
 }
 
 // ── PKCE helpers ──────────────────────────────────────────────────────────────
@@ -572,7 +576,7 @@ func openBrowser(u string) {
 	default:
 		cmd = exec.Command("xdg-open", u)
 	}
-	cmd.Start()
+	_ = cmd.Start()
 }
 
 func fatalf(format string, args ...any) {
