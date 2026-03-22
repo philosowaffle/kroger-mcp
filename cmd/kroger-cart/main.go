@@ -172,7 +172,8 @@ func firstTimeSetup() (*Config, error) {
 	fmt.Println("  King Soopers Cart Builder — First-time setup")
 	fmt.Println("═══════════════════════════════════════════════")
 	fmt.Println("You'll need your Kroger Developer API credentials.")
-	fmt.Println("Get them at: https://developer.kroger.com\n")
+	fmt.Println("Get them at: https://developer.kroger.com")
+	fmt.Println()
 
 	reader := bufio.NewReader(os.Stdin)
 
