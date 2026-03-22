@@ -1,0 +1,17 @@
+# Build output
+kroger-cart
+kroger-cart.exe
+
+# Runtime files — contain credentials and personal data, never commit these
+config.json
+product_cache.json
+
+# Grocery list is personal, keep local (optional — remove this line if you want to track it)
+grocery_list.txt
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+*.swp
+.vscode/
+.idea/
