@@ -21,6 +21,9 @@ grocery_list.txt
 # In-progress working notes (must be deleted before PR merge)
 tmp/
 
+# Claude Code local state
+.claude/
+
 # OS / editor noise
 .DS_Store
 Thumbs.db
