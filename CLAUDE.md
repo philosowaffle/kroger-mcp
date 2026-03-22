@@ -2,7 +2,7 @@
 
 | Standards Version | Last Synced Date |
 | ----------------- | ---------------- |
-| 1.0               | 2026-03-22       |
+| 1.1               | 2026-03-22       |
 
 ## Project Overview
 

@@ -36,7 +36,7 @@ Derive the short description from the issue title — lowercase, hyphen-separate
 
 ## Step 4: Write the spec file
 
-Create `docs/specs/issue-<number>-<short-title>.md` using this template:
+Create `docs/specs/<number>-<short-title>.md` using this template:
 
 ```markdown
 # Spec: <Issue Title>
@@ -60,7 +60,7 @@ Populate it from the issue content — do not leave it empty.
 ## Step 5: Commit and push the spec
 
 ```bash
-git add docs/specs/issue-<number>-<short-title>.md
+git add docs/specs/<number>-<short-title>.md
 git commit -m "docs: write spec for #<number>"
 git push
 ```
