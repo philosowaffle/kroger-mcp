@@ -63,8 +63,8 @@ State lives in the `kroger-data` volume, mounted at `/data`. To run from
 source instead, uncomment `build: .` in `docker-compose.yml` and use
 `docker compose up -d --build`, or run `go run .`.
 
-Images are published for `linux/amd64` and `linux/arm64`, tagged `latest`,
-`X.Y.Z` and `X.Y`.
+Images are published for `linux/amd64` and `linux/arm64`. Releases are tagged
+`latest`, `X.Y.Z` and `X.Y`; the tip of `main` is tagged `main`.
 
 ### 3. Connect Claude
 
@@ -149,12 +149,14 @@ in the connector's **Advanced settings**.
 
 ## Releasing
 
-Push a `vX.Y.Z` tag, or publish a GitHub release with a new tag. The release
-workflow then:
-
-- builds and pushes the multi-arch image to `ghcr.io/philosowaffle/kroger-mcp`;
-- attaches binaries to a GitHub release, with notes from git-cliff;
-- commits an updated `CHANGELOG.md` to `main`.
+- **Release:** go to **Actions → Release → Run workflow** on `main`, enter a
+  version like `v0.1.0`, and run it. It creates the tag, pushes the image
+  (`X.Y.Z`, `X.Y`, `latest`), publishes a GitHub release with binaries and
+  git-cliff notes, and commits `CHANGELOG.md` to `main`. Pushing a `vX.Y.Z` tag
+  yourself does the same.
+- **Every merge to `main`** publishes `ghcr.io/philosowaffle/kroger-mcp:main`
+  (plus `sha-<commit>`) for testing unreleased changes. No GitHub release is
+  created.
 
 ## Development
 
