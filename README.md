@@ -55,11 +55,16 @@ export KROGER_CLIENT_ID=...
 export KROGER_CLIENT_SECRET=...
 export KROGER_REDIRECT_URI=http://localhost:8080/kroger/callback
 
-docker compose up -d --build     # or: go run .
+docker compose up -d     # pulls ghcr.io/philosowaffle/kroger-mcp:latest
 ```
 
 Compose also reads these from a `.env` file next to `docker-compose.yml`.
-State lives in the `kroger-data` volume, mounted at `/data`.
+State lives in the `kroger-data` volume, mounted at `/data`. To run from
+source instead, uncomment `build: .` in `docker-compose.yml` and use
+`docker compose up -d --build`, or run `go run .`.
+
+Images are published for `linux/amd64` and `linux/arm64`, tagged `latest`,
+`X.Y.Z` and `X.Y`.
 
 ### 3. Connect Claude
 
@@ -141,6 +146,15 @@ in the connector's **Advanced settings**.
 | `KROGER_MCP_OIDC_ISSUER`   | (unset)                                 | OIDC issuer URL. Set to enable MCP auth.                  |
 | `KROGER_MCP_OIDC_RESOURCE` | (unset)                                 | Resource identifier / expected token audience.            |
 | `KROGER_MCP_OIDC_SCOPES`   | (unset)                                 | Space-separated scopes required on requests.              |
+
+## Releasing
+
+Push a `vX.Y.Z` tag, or publish a GitHub release with a new tag. The release
+workflow then:
+
+- builds and pushes the multi-arch image to `ghcr.io/philosowaffle/kroger-mcp`;
+- attaches binaries to a GitHub release, with notes from git-cliff;
+- commits an updated `CHANGELOG.md` to `main`.
 
 ## Development
 

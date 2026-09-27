@@ -5,11 +5,15 @@ on:
     tags:
       - "v*.*.*"
 
+env:
+  IMAGE: ghcr.io/${{ github.repository_owner }}/kroger-mcp
+
 jobs:
   release:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      packages: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -19,12 +23,12 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Generate changelog
-        uses: orhun/git-cliff-action@v3
+      - name: Generate release notes
+        uses: orhun/git-cliff-action@v4
         id: cliff
         with:
           config: cliff.toml
-          args: --current
+          args: --current --strip header
 
       - name: Build binaries
         run: |
@@ -34,20 +38,70 @@ jobs:
           GOOS=darwin  GOARCH=arm64 go build -o dist/kroger-mcp-darwin-arm64  .
           GOOS=windows GOARCH=amd64 go build -o dist/kroger-mcp-windows-amd64.exe .
 
-      - name: Build Docker image
-        run: docker build -t kroger-mcp:${{ github.ref_name }} .
+      - uses: docker/setup-buildx-action@v4
+
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Image tags
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.IMAGE }}
+          # v1.2.3 -> 1.2.3, 1.2, latest
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest
+
+      - name: Build and push image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          body: ${{ steps.cliff.outputs.content }}
+          body: |
+            ${{ steps.cliff.outputs.content }}
+
+            **Image:** `docker pull ${{ env.IMAGE }}:${{ github.ref_name }}`
           files: dist/*
 
-      - name: Update CHANGELOG.md
+  # Separate job so a failure here (e.g. a protected main branch) doesn't hide
+  # a successful release.
+  changelog:
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Generate CHANGELOG.md
+        uses: orhun/git-cliff-action@v4
+        with:
+          config: cliff.toml
+          args: --verbose
+        env:
+          OUTPUT: CHANGELOG.md
+
+      - name: Commit CHANGELOG.md
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git-cliff --output CHANGELOG.md
           git add CHANGELOG.md
           git diff --staged --quiet || git commit -m "chore: update CHANGELOG.md for ${{ github.ref_name }}"
           git push origin HEAD:main

@@ -1,6 +1,7 @@
 # Sample compose for self-hosting kroger-mcp.
 #
-#   docker compose up -d --build
+#   docker compose up -d         # pull + run the published image
+#   docker compose up -d --build # build from local source instead (uncomment build: below)
 #
 # Put KROGER_CLIENT_ID / KROGER_CLIENT_SECRET in a .env file next to this one
 # (gitignored) or export them in your shell; compose substitutes them below.
@@ -9,8 +10,9 @@
 
 services:
   kroger-mcp:
-    build: .
-    image: kroger-mcp
+    image: ghcr.io/philosowaffle/kroger-mcp:latest
+    # Uncomment to build from the source in this folder instead of pulling:
+    # build: .
     container_name: kroger-mcp
     restart: unless-stopped
     ports:

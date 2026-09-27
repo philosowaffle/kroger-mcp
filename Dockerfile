@@ -1,14 +1,17 @@
 # syntax=docker/dockerfile:1
 
 # ── Build stage ───────────────────────────────────────────────────────────────
-FROM golang:1.26-alpine AS build
+# Build on the runner's native platform and cross-compile for the target, so
+# multi-arch images don't need QEMU emulation.
+FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS build
+ARG TARGETOS TARGETARCH
 WORKDIR /src
 
 COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /out/kroger-mcp . \
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -ldflags="-s -w" -o /out/kroger-mcp . \
     && mkdir -p /out/data
 
 # ── Runtime stage ─────────────────────────────────────────────────────────────
