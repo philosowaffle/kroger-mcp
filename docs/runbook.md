@@ -38,12 +38,17 @@ task docker:down   # docker compose down
 ## Releasing
 
 1. Merge to `main` with Conventional Commit titles, since git-cliff builds the
-   notes from them.
-2. `git tag vX.Y.Z && git push origin vX.Y.Z`, or publish a release with a new
-   tag in the GitHub UI.
-3. The `Release` workflow pushes `ghcr.io/philosowaffle/kroger-mcp` (`X.Y.Z`,
-   `X.Y`, `latest`) for amd64 and arm64, creates the GitHub release with
-   binaries, and then commits `CHANGELOG.md` to `main` in a separate job.
+   notes from them. Each merge also publishes a `main` image
+   (`ghcr.io/philosowaffle/kroger-mcp:main`) you can test before releasing.
+2. Go to **Actions → Release → Run workflow** with branch `main`, enter the
+   version (`vX.Y.Z`), and run it. Pushing a `vX.Y.Z` tag from a terminal also
+   works.
+3. The workflow creates the tag (manual runs only), pushes the image
+   (`X.Y.Z`, `X.Y`, `latest`) for amd64 and arm64, creates the GitHub release
+   with binaries, and then commits `CHANGELOG.md` to `main` in a separate job.
+
+A manual run fails early, before anything is published, if the version isn't
+`vX.Y.Z`, the tag already exists, or it wasn't started from `main`.
 
 The first push creates the GHCR package as **private**. Either make it public
 (the package page → Package settings → Change visibility) or
