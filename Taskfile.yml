@@ -38,9 +38,9 @@ tasks:
       - docker build -t kroger-mcp .
 
   docker:up:
-    desc: Start via docker compose
+    desc: Start the published image via docker compose
     cmds:
-      - docker compose up -d --build
+      - docker compose up -d
 
   docker:down:
     desc: Stop docker compose

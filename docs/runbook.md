@@ -16,8 +16,10 @@
 4. `task run` to start on `:8080`, with state in `./data/`.
 5. `claude mcp add --transport http kroger http://localhost:8080`
 
-For the Docker path: `task docker:up` (compose reads `.env`), with state in the
-`kroger-data` volume.
+For the Docker path, `task docker:up` pulls and starts the published image
+(compose reads `.env`). State is kept in the `kroger-data` volume. To run
+local source in Docker, uncomment `build: .` in `docker-compose.yml` and run
+`docker compose up -d --build`.
 
 ## Common Tasks
 
@@ -29,9 +31,27 @@ task run           # go run . with .env loaded
 task test          # unit + in-memory end-to-end tests
 task lint          # golangci-lint
 task docker:build  # build image
-task docker:up     # docker compose up -d --build
+task docker:up     # docker compose up -d (published image)
 task docker:down   # docker compose down
 ```
+
+## Releasing
+
+1. Merge to `main` with Conventional Commit titles, since git-cliff builds the
+   notes from them.
+2. `git tag vX.Y.Z && git push origin vX.Y.Z`, or publish a release with a new
+   tag in the GitHub UI.
+3. The `Release` workflow pushes `ghcr.io/philosowaffle/kroger-mcp` (`X.Y.Z`,
+   `X.Y`, `latest`) for amd64 and arm64, creates the GitHub release with
+   binaries, and then commits `CHANGELOG.md` to `main` in a separate job.
+
+The first push creates the GHCR package as **private**. Either make it public
+(the package page → Package settings → Change visibility) or
+`docker login ghcr.io` on the host with a PAT that has `read:packages`.
+
+If `main` is protected, the changelog job's push fails. The release and image
+are unaffected. Allow `github-actions[bot]` to bypass the protection, or drop
+that job.
 
 ## Runtime State
 
