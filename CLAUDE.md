@@ -6,11 +6,16 @@
 
 ## Project Overview
 
-King Soopers Cart Builder — a Go CLI tool that reads a plain-text grocery list and
-automatically adds each item to the user's King Soopers pickup cart via the Kroger Public API.
-The user provides a plain-text grocery list; the tool searches for each item, adds it to the
-live King Soopers cart (visible immediately on kingsoopers.com), and reports anything it
-couldn't find. Checkout and pickup scheduling remain manual.
+kroger-mcp — a self-hosted Go MCP server that wraps the Kroger Public API so Claude can
+help with grocery shopping at Kroger-family stores (King Soopers, Kroger, Ralphs, ...).
+Tools cover store lookup, product search (price, promo, stock, aisle), linking the
+shopper's Kroger account, and adding items to their cart. It serves Streamable HTTP
+(not stdio) and ships as a Docker image. Checkout remains manual: the public API is
+add-only for carts.
+
+Structure and auth mirror forge-mcp (`philosowaffle/forge`, `forge-mcp/`): `internal/*`
+per concern, `tools/*` per tool group, a single registry in `internal/server`, and
+opt-in OAuth protected-resource auth on the MCP endpoint. See ADR 002.
 
 See `docs/` for full context: `architecture.md` for code structure, `runbook.md` for local
 setup, `api-research.md` for Kroger API findings, and `docs/decisions/` for ADRs.
@@ -287,7 +292,20 @@ Set native GitHub `Blocks` / `Blocked by` relationships on issues to track depen
 ## Project-Specific Notes
 
 - **Kroger API base URL:** `https://api.kroger.com/v1`
-- **OAuth redirect URI** must be set to `http://localhost:8080/callback` in your Kroger developer app
-- **Runtime files** (`config.json`, `product_cache.json`, `grocery_list.txt`) are gitignored and stay local
-- **No external Go dependencies** — standard library only, intentional (see ADR 001)
-- **First live run is still needed** — see issues #1–3 for what to validate
+- **Two auth layers — keep them separate.** `internal/auth` guards the MCP endpoint
+  (`KROGER_MCP_OIDC_*`, delegated to an external IdP). `internal/kroger` holds Kroger
+  credentials: an in-memory client-credentials app token, plus the shopper's user token
+  from the `kroger_login` flow, persisted in `DATA_DIR/state.json`.
+- **The Kroger callback route is unauthenticated on purpose** (browser redirect). It
+  accepts only single-use states minted by `kroger_login`. Don't move it behind the
+  bearer middleware, and don't add ways to mint states outside an MCP tool call.
+- **OAuth redirect URI** must match `KROGER_REDIRECT_URI` exactly; its path is the callback route
+  (default `http://localhost:8080/kroger/callback`).
+- **Runtime state** (`data/`, `.env`) is gitignored and stays local.
+- **Dependencies:** go-sdk, go-oidc and httpsnoop only. The Kroger client is standard library.
+- **Tests:** tool behaviour is tested end-to-end in `internal/server` over the SDK's
+  in-memory transport against the fake API in `internal/kroger/krogertest`. Extend the
+  fake when adding endpoints rather than mocking the client.
+- **Adding a tool:** add it under `tools/`, register it in `server.New()`, and add a case
+  to `internal/server/server_test.go` (including the `TestListTools` list).
+- **First live run is still needed**: the ⚠️ items in `docs/api-research.md` are unvalidated.

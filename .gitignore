@@ -1,15 +1,10 @@
 # Build output
 bin/
-/kroger-cart
-/kroger-cart.exe
+/kroger-mcp
+/kroger-mcp.exe
 
-# Runtime files — contain credentials and personal data, never commit these
-config.json
-product_cache.json
+# Runtime state — holds the linked Kroger account's tokens, never commit
 data/
-
-# Grocery list is personal, keep local (optional — remove this line if you want to track it)
-grocery_list.txt
 
 # Task runner cache
 .task/

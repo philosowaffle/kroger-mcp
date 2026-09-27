@@ -2,87 +2,77 @@
 
 ## Prerequisites
 
-- Go 1.21+
+- Go 1.26+
 - Docker + Docker Compose
-- Task (`go-task`) — install: https://taskfile.dev/installation/
-- A Kroger Developer account and app — https://developer.kroger.com
+- Task (`go-task`): https://taskfile.dev/installation/
+- A Kroger developer app: https://developer.kroger.com (see README → Setup)
 
 ## Local Setup
 
-1. Clone the repo
-2. Run `task build` to compile the binary to `bin/kroger-cart`
-3. On first run the tool will prompt for your Kroger API credentials,
-   open your browser for OAuth authorization, and ask for your zip code
-   to find your nearest King Soopers store
-4. Edit `grocery_list.txt` with this week's items
-5. Run `bin/kroger-cart` (or `.\bin\kroger-cart.exe` on Windows)
+1. Clone the repo.
+2. Create `.env` (gitignored) with at least `KROGER_CLIENT_ID` and
+   `KROGER_CLIENT_SECRET`. See the Config table in `README.md`.
+3. `task test` to confirm everything passes.
+4. `task run` to start on `:8080`, with state in `./data/`.
+5. `claude mcp add --transport http kroger http://localhost:8080`
 
-## First-Run OAuth Flow
-
-The tool uses OAuth 2.0 + PKCE. On first run:
-
-1. Your browser opens to the Kroger authorization page — log in with your **shopping** account
-2. After authorizing, Kroger redirects to `localhost:8080/callback`
-3. The tool catches the callback, exchanges the code for tokens, and saves them to `config.json`
-
-If your browser doesn't open automatically, copy the URL printed to the terminal.
-
-## Runtime Files
-
-These are gitignored and stay local only.
-
-| File | Purpose |
-|---|---|
-| `config.json` | Kroger API credentials, OAuth tokens, store location ID |
-| `product_cache.json` | Maps grocery list item names → UPC codes |
-| `grocery_list.txt` | Your grocery list (created as a sample on first run if missing) |
-
-All runtime files are expected to live in the working directory where the binary is run.
-
-## Running with Docker
-
-```bash
-task docker:build
-
-mkdir -p data
-# place grocery_list.txt in data/ before running
-docker-compose up
-```
-
-The `data/` directory is mounted into the container at `/data`. Port 8080 is mapped for OAuth.
+For the Docker path: `task docker:up` (compose reads `.env`), with state in the
+`kroger-data` volume.
 
 ## Common Tasks
 
-See `Taskfile.yml` for all available tasks. Key ones:
+See `Taskfile.yml`. Key ones:
 
 ```bash
-task build         # compile binary to bin/kroger-cart
-task fmt           # format all Go files
-task vet           # run go vet
-task lint          # run golangci-lint
-task test          # run unit tests
-task docker:build  # build Docker image
-task docker:up     # start via docker-compose
-task docker:down   # stop docker-compose
+task build         # compile to bin/kroger-mcp
+task run           # go run . with .env loaded
+task test          # unit + in-memory end-to-end tests
+task lint          # golangci-lint
+task docker:build  # build image
+task docker:up     # docker compose up -d --build
+task docker:down   # docker compose down
 ```
 
-## Correcting a Bad Product Match
+## Runtime State
 
-Open `product_cache.json` and delete the entry for the mismatched item.
-The next run will re-search and cache whatever it finds.
-You can also look up the correct UPC on kingsoopers.com (it's in the product URL)
-and paste it directly into the cache file.
+`$KROGER_MCP_DATA_DIR/state.json` (`/data/state.json` in the container) holds the
+linked shopper's access and refresh tokens and the preferred store. It is
+written with mode 0600. Back it up if you don't want to relink; delete it to
+unlink.
 
 ## Troubleshooting
 
-**Location lookup returns no results**
-The `filter.chain=King Soopers` parameter may not be supported by the live API.
-Try removing it from `resolveLocationID()` in `cmd/kroger-cart/main.go` and selecting
-your store from the full results list.
+**`add_to_cart` says the account isn't linked**
+Ask Claude to run `kroger_login` and open the URL. Kroger refresh tokens last
+about six months. When a refresh is rejected, the server clears the link and
+asks you to link again.
 
-**OAuth callback never received**
-Ensure `http://localhost:8080/callback` is set as the redirect URI in your Kroger developer app.
-Port 8080 must be free when running the tool.
+**Callback page says "Link expired"**
+Login URLs are single-use and expire after 15 minutes. They also don't survive
+a server restart, because pending states live in memory. Ask for a new one.
 
-**Token expired**
-Delete `config.json` and re-run to go through the full auth flow again.
+**Kroger shows a redirect_uri error on the login page**
+`KROGER_REDIRECT_URI` must match a redirect URI on the Kroger developer app
+character for character, including scheme, host, port and path.
+
+**Callback page says something went wrong exchanging the code**
+Check the logs (`docker logs kroger-mcp`) for the Kroger error. The usual cause
+is a wrong client secret.
+
+**`permission denied` writing state in Docker**
+The container runs as uid 65532. Named volumes inherit the right ownership. For
+a bind mount, `chown 65532:65532` the host directory.
+
+**Product results have no price or stock**
+No store was in scope. Set one with `set_preferred_location` or
+`KROGER_LOCATION_ID`, or pass `location_id`.
+
+**Claude gets 401 from the MCP endpoint (auth on)**
+The server logs the exact rejection at WARN. Common causes: the token `aud`
+doesn't contain `KROGER_MCP_OIDC_RESOURCE`, the provider issued an opaque token
+instead of a JWT, or the issuer doesn't match. Set `KROGER_MCP_LOG_LEVEL=trace`
+for per-request logs.
+
+**Location search returns nothing with a chain filter**
+`chain` has to match Kroger's own chain code exactly. Search without it, then
+reuse the `chain` value from the results.

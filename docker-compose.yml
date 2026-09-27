@@ -1,10 +1,43 @@
+# Sample compose for self-hosting kroger-mcp.
+#
+#   docker compose up -d --build
+#
+# Put KROGER_CLIENT_ID / KROGER_CLIENT_SECRET in a .env file next to this one
+# (gitignored) or export them in your shell; compose substitutes them below.
+#
+# Connect Claude:  claude mcp add --transport http kroger http://<host>:8080
+
 services:
-  kroger-cart:
+  kroger-mcp:
     build: .
-    image: kroger-cart
-    stdin_open: true
-    tty: true
+    image: kroger-mcp
+    container_name: kroger-mcp
+    restart: unless-stopped
     ports:
       - "8080:8080"
+    environment:
+      KROGER_MCP_ADDR: ":8080"
+      # KROGER_MCP_LOG_LEVEL: "info"   # set "trace" for per-request logs
+      # --- Kroger developer app (required) ---
+      KROGER_CLIENT_ID: "${KROGER_CLIENT_ID:?set KROGER_CLIENT_ID}"
+      KROGER_CLIENT_SECRET: "${KROGER_CLIENT_SECRET:?set KROGER_CLIENT_SECRET}"
+      # Must exactly match a redirect URI registered on the Kroger app.
+      KROGER_REDIRECT_URI: "${KROGER_REDIRECT_URI:-http://localhost:8080/kroger/callback}"
+      # --- Shopping defaults (optional) ---
+      # KROGER_LOCATION_ID: ""          # or ask Claude to set_preferred_location
+      # KROGER_MODALITY: "PICKUP"       # PICKUP or DELIVERY
+      # --- MCP auth (optional) ---
+      # Set an OIDC issuer to require OAuth bearer tokens (protected resource).
+      # Leave unset to run unauthenticated (LAN/VPN only). See README.
+      # KROGER_MCP_OIDC_ISSUER: "https://auth.example.com"
+      # KROGER_MCP_OIDC_RESOURCE: "https://kroger-mcp.example.com"
+      # KROGER_MCP_OIDC_SCOPES: "mcp"
     volumes:
-      - ./data:/data
+      # Holds the linked Kroger account's tokens. A named volume inherits the
+      # image's nonroot ownership; for a bind mount, chown the host directory
+      # to 65532:65532 first.
+      - kroger-data:/data
+    # The image ships its own HEALTHCHECK (the binary probes /healthz).
+
+volumes:
+  kroger-data:

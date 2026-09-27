@@ -1,7 +1,7 @@
 # 001 — Single-file architecture
 
 **Date:** 2026-03-22
-**Status:** Accepted
+**Status:** Superseded by [002](002-mcp-server-pivot.md)
 
 ## Context
 

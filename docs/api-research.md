@@ -13,14 +13,17 @@ Base URL: `https://api.kroger.com/v1`
 
 ## Authentication
 
-The API uses OAuth 2.0. This tool uses the **Authorization Code + PKCE** flow, which:
-- Requires the user to log in with their Kroger shopping account once in a browser
-- Returns a short-lived access token and a longer-lived refresh token
-- Refresh tokens expire every 6 months; after that the user must re-authorize in the browser
+The API uses OAuth 2.0 with two grants:
 
-Tokens are cached in `config.json` and refreshed automatically on each run.
+- **Client credentials** (scope `product.compact`) returns an app token. That's
+  enough for the Products and Locations APIs, and kroger-mcp keeps it in memory.
+- **Authorization Code + PKCE** (scopes `cart.basic:write profile.compact
+  product.compact`) returns a user token for the Cart and Identity APIs. It:
+  - requires the shopper to log in with their Kroger shopping account once in a browser
+  - returns a short-lived access token and a longer-lived refresh token
+  - has refresh tokens that expire every 6 months, after which the shopper must re-authorize
 
-Scopes requested: `product.compact cart.basic:write profile.compact`
+kroger-mcp persists the user token in `DATA_DIR/state.json` and refreshes it on demand.
 
 Token endpoint: `https://api.kroger.com/v1/connect/oauth2/token`
 Auth endpoint:  `https://api.kroger.com/v1/connect/oauth2/authorize`
@@ -30,8 +33,8 @@ Auth endpoint:  `https://api.kroger.com/v1/connect/oauth2/authorize`
 ### Locations API
 `GET /v1/locations`
 
-Used once during first-time setup to find the user's King Soopers store and get its
-`locationId`, which is required for scoping product searches.
+Backs the `search_locations` tool. A store's `locationId` scopes product searches
+to that store's catalog, prices and stock.
 
 Parameters used:
 - `filter.zipCode.near` — zip code to search near
@@ -39,25 +42,27 @@ Parameters used:
   unconfirmed** — if location lookup returns empty results, try removing this filter
 - `filter.limit` — number of results to return
 
-The resolved `locationId` is stored in `config.json` and used on every product search.
+`GET /v1/locations/{locationId}` looks up one store; `set_preferred_location` uses it
+to validate the id before saving it.
 
 ### Products API
 `GET /v1/products`
 
-Used to search for grocery items by name, scoped to the user's store.
+Backs `search_products` (and `GET /v1/products/{id}` backs `get_product`).
 
 Parameters used:
-- `filter.term` — the item name from the grocery list
+- `filter.term` — the search text
 - `filter.locationId` — the store's location ID (ensures results are store-specific)
-- `filter.limit` — set to 5; the first result is used and cached
+- `filter.brand` — optional brand filter
+- `filter.limit` — 1–50
+- `filter.start` — offset for paging
 
 Notes:
 - Results are specific to the given store's catalog when `locationId` is provided
-- Real-time stock availability is not exposed in the public API tier; the API returns
-  product catalog data but not live inventory levels. Out-of-stock items will be flagged
-  by King Soopers during the pickup fulfillment process.
-- The tool takes the first result and caches it. See the TODO in CLAUDE.md about adding
-  an interactive confirmation mode for first-time matches.
+- When scoped to a store, items carry `price.regular` / `price.promo`,
+  `fulfillment` flags and ⚠️ `inventory.stockLevel` (HIGH / LOW /
+  TEMPORARILY_OUT_OF_STOCK). Whether stock level comes back on the public tier
+  still needs confirming on a live call.
 
 ### Cart API
 `PUT /v1/cart/add`
@@ -85,12 +90,10 @@ first run). The code currently accepts either.
 
 **Cannot remove items from cart.** The public Cart API is add-only. Removing items requires
 either a Partner API contract with Kroger (not publicly available) or manual action on
-kingsoopers.com. Practical implication: clear your cart manually before running the tool
-if you want a clean slate each week.
+kingsoopers.com. The cart can't be read back either, so
+the `add_to_cart` tool tells Claude to confirm with the shopper before adding.
 
-**No order history.** Past orders are not accessible via the public API. The product cache
-(`product_cache.json`) serves as the tool's substitute — once an item is matched and
-confirmed, it's remembered for all future runs.
+**No order history.** Past orders are not accessible via the public API.
 
 **Rate limits.** The public Cart API allows 5,000 calls per day, which is far more than
 needed for weekly grocery runs.
