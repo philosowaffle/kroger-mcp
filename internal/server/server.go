@@ -23,6 +23,10 @@ const instructions = `Tools for grocery shopping at Kroger-family stores (King S
 
 Typical flow: find the shopper's store with search_locations and save it with set_preferred_location; look items up with search_products; confirm choices with the shopper; then add_to_cart by UPC. add_to_cart needs a linked Kroger account: if it reports the account isn't linked, call kroger_login and give the shopper the URL.
 
+Product and store tools return a compact "lite" view by default. Pass detail="full" only when you need more (images, nutrition where Kroger has it, shelf position, store hours, departments); full records are much larger. get_product serves products seen in the last 5 minutes from cache, so fetching full details for a search result is cheap.
+
+Use list_chains for valid chain names and list_departments for department ids before filtering search_locations by them.
+
 The Kroger API can add to the cart but cannot read, change or remove cart items, and cannot check out. Shoppers finish on the store's website or app.`
 
 // New builds the MCP server with every tool registered against c.

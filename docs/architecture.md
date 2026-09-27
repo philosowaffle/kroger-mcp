@@ -22,7 +22,7 @@ internal/auth/              MCP-side OAuth resource server: metadata + bearer JW
 internal/health/            /healthz handler + -healthcheck self-probe
 internal/logging/           slog setup with a TRACE level and KROGER_MCP_LOG_LEVEL
 tools/account/              kroger_login, kroger_auth_status
-tools/locations/            search_locations, set_preferred_location
+tools/locations/            search_locations, get_location, set_preferred_location, list_chains, list_departments
 tools/products/             search_products, get_product
 tools/cart/                 add_to_cart
 ```
@@ -45,8 +45,16 @@ covered by the in-memory end-to-end tests in `internal/server/server_test.go`.
 - *State* (`state.go`): `DATA_DIR/state.json` holds the user token and the
   preferred store. It is written 0600 and swapped in atomically (temp file +
   rename), and memory only changes if the write succeeds.
-- API responses are flattened into `Location` and `Product` types that keep only
-  what matters for shopping, so tool output stays compact in Claude's context.
+- *Records*: product and location calls return records that carry both a lite
+  view (`Product`, `Location`), which keeps only what matters for shopping, and
+  Kroger's raw JSON. Tools return the lite view by default, or the raw record
+  when called with `detail: "full"`. Passing the raw JSON through means new
+  Kroger fields (e.g. nutrition) show up without code changes.
+- *Product cache* (`cache.go`): raw product records are kept in memory for 5
+  minutes, keyed by product id and store (prices differ per store). Searches
+  fill it and `GetProduct` reads it, so asking for full details on a search
+  result doesn't call Kroger again. It holds at most 2000 entries; expired
+  entries are evicted first, then the oldest.
 
 **`internal/auth`** makes the MCP endpoint an OAuth protected resource (RFC
 9728) when `KROGER_MCP_OIDC_ISSUER` is set. It never runs flows itself. It uses

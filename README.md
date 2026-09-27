@@ -11,13 +11,21 @@ and others). Written in Go on the official
 
 | Tool                     | Needs linked account | What it does                                                        |
 | ------------------------ | :------------------: | ------------------------------------------------------------------- |
-| `search_locations`       |                      | Find stores near a zip code.                                        |
+| `search_locations`       |                      | Find stores by zip code, coordinates or id. Filter by chain and department. |
+| `get_location`           |                      | Get one store.                                                      |
 | `set_preferred_location` |                      | Save a default store. It persists across restarts.                  |
-| `search_products`        |                      | Search the catalog. Scoped to a store, it adds price, promo, stock, aisle and fulfillment. |
-| `get_product`            |                      | Get one product by product id or UPC.                               |
+| `list_chains`            |                      | List chains (valid `chain` filter values), or look one up.          |
+| `list_departments`       |                      | List departments (ids for the `department_ids` filter), or look one up. |
+| `search_products`        |                      | Search by term, brand or product ids, optionally by fulfillment type. Scoped to a store, it adds price, promo, stock, aisle and fulfillment. |
+| `get_product`            |                      | Get one product by product id or UPC. Served from a 5-minute cache when recently seen. |
 | `kroger_login`           |                      | Get a single-use URL to link your Kroger shopping account.          |
 | `kroger_auth_status`     |                      | Check whether an account is linked and which store is the default.  |
 | `add_to_cart`            |          ✓           | Add items to your cart by UPC (PICKUP or DELIVERY).                 |
+
+Product and store tools take `detail`. The default, `lite`, is a compact view for
+shopping. `full` returns Kroger's complete record: images, every item and price
+field, shelf position, dimensions and nutrition where Kroger provides it for
+products; hours, departments and geolocation for stores.
 
 The Kroger public API can **add** to a cart, but it cannot read the cart, remove
 items or check out. You finish on the store's website or app.

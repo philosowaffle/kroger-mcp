@@ -99,5 +99,5 @@ instead of a JWT, or the issuer doesn't match. Set `KROGER_MCP_LOG_LEVEL=trace`
 for per-request logs.
 
 **Location search returns nothing with a chain filter**
-`chain` has to match Kroger's own chain code exactly. Search without it, then
-reuse the `chain` value from the results.
+`chain` has to match Kroger's chain name exactly. Ask Claude to run
+`list_chains` and use a name from there.
