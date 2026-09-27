@@ -1,0 +1,157 @@
+package kroger
+
+import (
+	"context"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
+	"errors"
+	"fmt"
+	"html/template"
+	"log/slog"
+	"net/http"
+	"net/url"
+	"strings"
+	"time"
+)
+
+// pendingAuthTTL bounds how long a login URL from AuthorizeURL stays usable.
+const pendingAuthTTL = 15 * time.Minute
+
+// pendingAuth is an authorization request waiting for Kroger to redirect back.
+type pendingAuth struct {
+	verifier string
+	expires  time.Time
+}
+
+// ErrUnknownState means the callback's state did not match an outstanding
+// login URL: it expired, was already used, or was never issued here.
+var ErrUnknownState = errors.New("unknown or expired login state; request a new link with the kroger_login tool")
+
+// AuthorizeURL starts linking a shopper's Kroger account. It returns a Kroger
+// login URL carrying a fresh single-use state and PKCE challenge. Only states
+// issued here are accepted by the callback, so the callback can't be used to
+// link an account unless someone first obtained a URL through this method.
+func (c *Client) AuthorizeURL() (string, error) {
+	st, err := randomString(32)
+	if err != nil {
+		return "", err
+	}
+	verifier, err := randomString(64)
+	if err != nil {
+		return "", err
+	}
+
+	now := c.now()
+	c.pendingMu.Lock()
+	for k, p := range c.pending {
+		if now.After(p.expires) {
+			delete(c.pending, k)
+		}
+	}
+	c.pending[st] = pendingAuth{verifier: verifier, expires: now.Add(pendingAuthTTL)}
+	c.pendingMu.Unlock()
+
+	q := url.Values{
+		"response_type":         {"code"},
+		"client_id":             {c.cfg.ClientID},
+		"redirect_uri":          {c.cfg.RedirectURI},
+		"scope":                 {strings.Join(userScopes, " ")},
+		"state":                 {st},
+		"code_challenge":        {codeChallenge(verifier)},
+		"code_challenge_method": {"S256"},
+	}
+	return c.cfg.BaseURL + "/connect/oauth2/authorize?" + q.Encode(), nil
+}
+
+// CompleteAuthorization exchanges the code Kroger redirected back with for
+// tokens and persists them. The state is consumed whether or not the
+// exchange succeeds.
+func (c *Client) CompleteAuthorization(ctx context.Context, st, code string) error {
+	c.pendingMu.Lock()
+	p, ok := c.pending[st]
+	delete(c.pending, st)
+	c.pendingMu.Unlock()
+	if !ok || c.now().After(p.expires) {
+		return ErrUnknownState
+	}
+	if code == "" {
+		return errors.New("callback is missing the authorization code")
+	}
+
+	t, err := c.postToken(ctx, url.Values{
+		"grant_type":    {"authorization_code"},
+		"code":          {code},
+		"redirect_uri":  {c.cfg.RedirectURI},
+		"code_verifier": {p.verifier},
+	})
+	if err != nil {
+		return fmt.Errorf("exchange authorization code: %w", err)
+	}
+	return c.state.update(func(s *state) { s.UserToken = t })
+}
+
+var callbackPage = template.Must(template.New("callback").Parse(`<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>kroger-mcp</title>
+<style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:4rem auto;padding:0 1rem;line-height:1.5}</style>
+</head><body><h1>{{.Title}}</h1><p>{{.Message}}</p></body></html>
+`))
+
+// CallbackHandler handles Kroger's OAuth redirect. It must be reachable by
+// the shopper's browser without MCP bearer auth; the single-use state is
+// what ties the request back to a login URL issued by AuthorizeURL.
+func (c *Client) CallbackHandler() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			w.Header().Set("Allow", http.MethodGet)
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		q := r.URL.Query()
+
+		render := func(status int, title, msg string) {
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.Header().Set("Cache-Control", "no-store")
+			w.WriteHeader(status)
+			_ = callbackPage.Execute(w, struct{ Title, Message string }{title, msg})
+		}
+
+		if e := q.Get("error"); e != "" {
+			// Consume the state so the URL can't be retried.
+			c.pendingMu.Lock()
+			delete(c.pending, q.Get("state"))
+			c.pendingMu.Unlock()
+			slog.Warn("kroger: authorization denied", "error", e, "description", q.Get("error_description"))
+			render(http.StatusBadRequest, "Kroger account not linked", "Kroger returned: "+e+". Ask Claude for a new link to try again.")
+			return
+		}
+
+		err := c.CompleteAuthorization(r.Context(), q.Get("state"), q.Get("code"))
+		switch {
+		case errors.Is(err, ErrUnknownState):
+			render(http.StatusBadRequest, "Link expired", "This login link has expired or was already used. Ask Claude for a new one.")
+		case err != nil:
+			slog.Error("kroger: complete authorization", "err", err)
+			render(http.StatusBadGateway, "Kroger account not linked", "Something went wrong exchanging the code with Kroger. Check the server logs, then ask Claude for a new link.")
+		default:
+			slog.Info("kroger: account linked")
+			render(http.StatusOK, "Kroger account linked", "You can close this tab and go back to Claude.")
+		}
+	})
+}
+
+// randomString returns n random bytes, base64url-encoded without padding.
+func randomString(n int) (string, error) {
+	b := make([]byte, n)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(b), nil
+}
+
+// codeChallenge derives the PKCE S256 challenge for verifier.
+func codeChallenge(verifier string) string {
+	sum := sha256.Sum256([]byte(verifier))
+	return base64.RawURLEncoding.EncodeToString(sum[:])
+}

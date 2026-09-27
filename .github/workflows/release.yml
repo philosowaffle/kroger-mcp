@@ -17,7 +17,7 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.21"
+          go-version-file: go.mod
 
       - name: Generate changelog
         uses: orhun/git-cliff-action@v3
@@ -29,12 +29,13 @@ jobs:
       - name: Build binaries
         run: |
           mkdir -p dist
-          GOOS=linux   GOARCH=amd64 go build -o dist/kroger-cart-linux-amd64   ./cmd/kroger-cart/
-          GOOS=darwin  GOARCH=amd64 go build -o dist/kroger-cart-darwin-amd64  ./cmd/kroger-cart/
-          GOOS=windows GOARCH=amd64 go build -o dist/kroger-cart-windows-amd64.exe ./cmd/kroger-cart/
+          GOOS=linux   GOARCH=amd64 go build -o dist/kroger-mcp-linux-amd64   .
+          GOOS=linux   GOARCH=arm64 go build -o dist/kroger-mcp-linux-arm64   .
+          GOOS=darwin  GOARCH=arm64 go build -o dist/kroger-mcp-darwin-arm64  .
+          GOOS=windows GOARCH=amd64 go build -o dist/kroger-mcp-windows-amd64.exe .
 
       - name: Build Docker image
-        run: docker build -t kroger-cart:${{ github.ref_name }} .
+        run: docker build -t kroger-mcp:${{ github.ref_name }} .
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
