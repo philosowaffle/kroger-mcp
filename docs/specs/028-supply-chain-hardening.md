@@ -39,3 +39,7 @@ dependencies, and releases ship without checksums, SBOMs or provenance.
   Dependabot's docker ecosystem watches.
 - OpenSSF Scorecard (optional in the issue) is left out. It's most useful once
   the repo is public.
+- govulncheck's first run found 34 reachable standard-library vulnerabilities, because
+  `setup-go` installs exactly the `go` version in `go.mod` (it was `1.26.0`, which
+  release binaries were built with too). `go.mod` now says `go 1.26.8`. Dependabot
+  doesn't bump the `go` directive, so raise it when govulncheck flags a stdlib fix.
