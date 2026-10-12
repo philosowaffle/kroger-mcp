@@ -1,0 +1,42 @@
+# golangci-lint v2 configuration. `task lint` and PR Checks both use it.
+version: "2"
+
+run:
+  # Lint the integration tests too, so they can't rot.
+  build-tags:
+    - integration
+
+linters:
+  # The standard set (errcheck, govet, ineffassign, staticcheck, unused) plus:
+  enable:
+    - bodyclose
+    - errorlint
+    - errname
+    - gocritic
+    - gosec
+    - misspell
+    - nilerr
+    - noctx
+    - revive
+    - unconvert
+  settings:
+    misspell:
+      locale: US
+  exclusions:
+    presets:
+      - std-error-handling
+    rules:
+      # Tests build fixtures and fake servers; these checks aren't useful there.
+      - path: _test\.go$
+        linters:
+          - gosec
+          - noctx
+
+formatters:
+  enable:
+    - gofumpt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/philosowaffle/kroger-cart

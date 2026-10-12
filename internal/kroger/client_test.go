@@ -1263,7 +1263,7 @@ func TestRateLimits(t *testing.T) {
 		}
 	})
 
-	t.Run("cancelled wait does not retry", func(t *testing.T) {
+	t.Run("canceled wait does not retry", func(t *testing.T) {
 		c, fake := newTestClient(t)
 		c.sleep = func(context.Context, time.Duration) error { return context.Canceled }
 		fake.FailNext("/products", 1, http.StatusTooManyRequests, "1")
@@ -1316,6 +1316,26 @@ func TestAPIErrorMessage(t *testing.T) {
 	}
 }
 
+// TestAPIErrorMessage_RedactsSecrets covers #29: error text returned to
+// Claude never carries a credential, even if Kroger echoes one.
+func TestAPIErrorMessage_RedactsSecrets(t *testing.T) {
+	body := `{"error":"invalid_grant","access_token":"AT-secret","refresh_token" : "RT-secret","code":"CODE-secret","id_token":"ID-secret"}`
+	msg := (&APIError{Status: 400, Body: body}).Error()
+	for _, secret := range []string{"AT-secret", "RT-secret", "CODE-secret", "ID-secret"} {
+		if strings.Contains(msg, secret) {
+			t.Errorf("message leaks %s: %s", secret, msg)
+		}
+	}
+	if !strings.Contains(msg, "invalid_grant") || !strings.Contains(msg, `"access_token":"[redacted]"`) {
+		t.Errorf("message = %s", msg)
+	}
+
+	long := (&APIError{Status: 500, Body: strings.Repeat("é", 600)}).Error()
+	if !strings.HasSuffix(long, "…") || strings.Count(long, "é") != maxErrorBody {
+		t.Errorf("long body not cut to %d runes: len %d", maxErrorBody, len(long))
+	}
+}
+
 func TestSleepCtx(t *testing.T) {
 	if err := sleepCtx(context.Background(), time.Millisecond); err != nil {
 		t.Errorf("sleep: %v", err)
@@ -1323,6 +1343,6 @@ func TestSleepCtx(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	if err := sleepCtx(ctx, time.Hour); !errors.Is(err, context.Canceled) {
-		t.Errorf("cancelled sleep: %v", err)
+		t.Errorf("canceled sleep: %v", err)
 	}
 }

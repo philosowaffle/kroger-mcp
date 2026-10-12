@@ -44,7 +44,7 @@ type stateFile struct {
 
 func loadState(path string) (*stateFile, error) {
 	f := &stateFile{path: path}
-	b, err := os.ReadFile(path)
+	b, err := os.ReadFile(path) //nolint:gosec // G304: path is the operator-configured data dir, not user input.
 	if errors.Is(err, fs.ErrNotExist) {
 		return f, nil
 	}

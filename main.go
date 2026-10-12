@@ -78,7 +78,13 @@ func checkExposure(addr string, authOn bool) error {
 
 func main() {
 	healthcheck := flag.Bool("healthcheck", false, "probe the running server's health endpoint and exit (used by the container HEALTHCHECK)")
+	version := flag.Bool("version", false, "print the version and exit")
 	flag.Parse()
+
+	if *version {
+		fmt.Println(server.Name, server.Version, server.Commit)
+		return
+	}
 
 	logging.Setup()
 	addr := listenAddr()
@@ -131,7 +137,7 @@ func run(addr string) error {
 
 	errCh := make(chan error, 1)
 	go func() {
-		slog.Info("listening", "service", server.Name, "version", server.Version, "addr", addr)
+		slog.Info("listening", "service", server.Name, "version", server.Version, "commit", server.Commit, "addr", addr)
 		if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			errCh <- err
 		}

@@ -13,10 +13,19 @@ import (
 	"github.com/philosowaffle/kroger-cart/tools/products"
 )
 
-const (
-	// Name and Version identify this server to MCP clients.
-	Name    = "kroger-mcp"
-	Version = "0.1.0"
+// Name identifies this server to MCP clients.
+const Name = "kroger-mcp"
+
+// Version and Commit are set at build time with
+//
+//	-ldflags "-X github.com/philosowaffle/kroger-cart/internal/server.Version=v1.2.3
+//	          -X github.com/philosowaffle/kroger-cart/internal/server.Commit=abc1234"
+//
+// by the Taskfile, Dockerfile and release workflow. Version is reported to MCP
+// clients as serverInfo.version.
+var (
+	Version = "dev"
+	Commit  = "unknown"
 )
 
 const instructions = `Tools for grocery shopping at Kroger-family stores (King Soopers, Kroger, Ralphs, Fred Meyer, and others).

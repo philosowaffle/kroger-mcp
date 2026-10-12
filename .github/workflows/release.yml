@@ -112,6 +112,9 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VERSION=${{ needs.prepare.outputs.version || 'main' }}
+            COMMIT=${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -143,10 +146,12 @@ jobs:
       - name: Build binaries
         run: |
           mkdir -p dist
-          GOOS=linux   GOARCH=amd64 go build -o dist/kroger-mcp-linux-amd64   .
-          GOOS=linux   GOARCH=arm64 go build -o dist/kroger-mcp-linux-arm64   .
-          GOOS=darwin  GOARCH=arm64 go build -o dist/kroger-mcp-darwin-arm64  .
-          GOOS=windows GOARCH=amd64 go build -o dist/kroger-mcp-windows-amd64.exe .
+          pkg=github.com/philosowaffle/kroger-cart/internal/server
+          ldflags="-s -w -X $pkg.Version=$VERSION -X $pkg.Commit=$(git rev-parse --short HEAD)"
+          GOOS=linux   GOARCH=amd64 go build -ldflags "$ldflags" -o dist/kroger-mcp-linux-amd64   .
+          GOOS=linux   GOARCH=arm64 go build -ldflags "$ldflags" -o dist/kroger-mcp-linux-arm64   .
+          GOOS=darwin  GOARCH=arm64 go build -ldflags "$ldflags" -o dist/kroger-mcp-darwin-arm64  .
+          GOOS=windows GOARCH=amd64 go build -ldflags "$ldflags" -o dist/kroger-mcp-windows-amd64.exe .
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

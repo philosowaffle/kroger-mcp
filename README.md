@@ -203,7 +203,8 @@ in the connector's **Advanced settings**.
   version like `v0.1.0`, and run it. It creates the tag, pushes the image
   (`X.Y.Z`, `X.Y`, `latest`), publishes a GitHub release with binaries and
   git-cliff notes, and commits `CHANGELOG.md` to `main`. Pushing a `vX.Y.Z` tag
-  yourself does the same.
+  yourself does the same. `kroger-mcp -version` reports the tag it was built
+  from.
 - **Every merge to `main`** publishes `ghcr.io/philosowaffle/kroger-mcp:main`
   (plus `sha-<commit>`) for testing unreleased changes. No GitHub release is
   created.
@@ -213,8 +214,9 @@ in the connector's **Advanced settings**.
 ```sh
 task test              # go test ./...
 task test:integration  # live tests against the Kroger certification API (needs cert credentials)
-task lint    # golangci-lint
-task run     # go run . (loads .env)
+task lint              # golangci-lint (.golangci.yml)
+task ci                # everything PR Checks runs
+task run               # go run . (loads .env)
 ```
 
 See [`docs/architecture.md`](docs/architecture.md) for how it fits together and

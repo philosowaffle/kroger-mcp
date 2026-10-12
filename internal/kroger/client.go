@@ -18,6 +18,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -54,11 +55,20 @@ func (e *APIError) Error() string {
 		}
 		return msg + ". Retrying right away will fail again."
 	}
-	body := e.Body
-	if len(body) > 500 {
-		body = body[:500] + "…"
-	}
-	return fmt.Sprintf("kroger api: status %d: %s", e.Status, body)
+	return fmt.Sprintf("kroger api: status %d: %s", e.Status, truncate(redactSecrets(e.Body), maxErrorBody))
+}
+
+// maxErrorBody caps how much of an error response is echoed back to Claude.
+const maxErrorBody = 500
+
+// secretField matches a JSON string field that could hold a credential.
+var secretField = regexp.MustCompile(`"(access_token|refresh_token|id_token|client_secret|code_verifier|code)"\s*:\s*"[^"]*"`)
+
+// redactSecrets blanks credential-shaped JSON fields in an error body before
+// it reaches Claude or the logs. Kroger's error bodies aren't expected to
+// carry any, but nothing guarantees it.
+func redactSecrets(body string) string {
+	return secretField.ReplaceAllString(body, `"$1":"[redacted]"`)
 }
 
 // Is reports a 429 as ErrRateLimited.
@@ -234,7 +244,7 @@ func (c *Client) userAccessToken(ctx context.Context) (string, error) {
 			// Refresh tokens last about six months; after that the shopper
 			// has to link again.
 			_ = c.state.update(func(s *state) { s.UserToken = nil })
-			return "", fmt.Errorf("%w (refresh rejected: %v)", ErrNotLinked, err)
+			return "", fmt.Errorf("%w (refresh rejected: %w)", ErrNotLinked, err)
 		}
 		return "", fmt.Errorf("refresh user token: %w", err)
 	}

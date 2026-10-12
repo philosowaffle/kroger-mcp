@@ -122,6 +122,19 @@ func TestServerInstructions(t *testing.T) {
 	}
 }
 
+// TestServerInfoVersion covers #29: serverInfo.version is the build-time
+// Version, "dev" in an untagged build.
+func TestServerInfoVersion(t *testing.T) {
+	h := newHarness(t)
+	info := h.cs.InitializeResult().ServerInfo
+	if info.Name != Name || info.Version != Version {
+		t.Errorf("serverInfo = %s %s, want %s %s", info.Name, info.Version, Name, Version)
+	}
+	if Version != "dev" {
+		t.Errorf("Version = %q without ldflags, want dev", Version)
+	}
+}
+
 func TestSearchLocationsAndSetPreferred(t *testing.T) {
 	h := newHarness(t)
 

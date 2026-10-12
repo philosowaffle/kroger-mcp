@@ -1,16 +1,45 @@
 version: "3"
 
+vars:
+  PKG: github.com/philosowaffle/kroger-cart/internal/server
+  VERSION:
+    sh: git describe --tags --always --dirty 2>/dev/null || echo dev
+  COMMIT:
+    sh: git rev-parse --short HEAD 2>/dev/null || echo unknown
+  LDFLAGS: -X {{.PKG}}.Version={{.VERSION}} -X {{.PKG}}.Commit={{.COMMIT}}
+
 tasks:
   build:
     desc: Build the project binary
     cmds:
-      - go build -o bin/kroger-mcp .
+      - go build -ldflags "{{.LDFLAGS}}" -o bin/kroger-mcp .
 
   run:
     desc: Run the server locally (reads .env if present)
     dotenv: [".env"]
     cmds:
-      - go run .
+      - go run -ldflags "{{.LDFLAGS}}" .
+
+  ci:
+    desc: Run the same checks as PR Checks (format, vet, lint, build, test)
+    cmds:
+      - task: fmt:check
+      - go vet ./...
+      - go vet -tags integration ./...
+      - task: lint
+      - go build ./...
+      - task: test
+
+  fmt:check:
+    desc: Fail if any Go file needs formatting
+    cmds:
+      - |
+        out="$(gofmt -l .)"
+        if [ -n "$out" ]; then
+          echo "The following files need formatting:"
+          echo "$out"
+          exit 1
+        fi
 
   test:
     desc: Run all unit tests
@@ -41,7 +70,7 @@ tasks:
   docker:build:
     desc: Build the Docker image
     cmds:
-      - docker build -t kroger-mcp .
+      - docker build --build-arg VERSION={{.VERSION}} --build-arg COMMIT={{.COMMIT}} -t kroger-mcp .
 
   docker:up:
     desc: Start the published image via docker compose
