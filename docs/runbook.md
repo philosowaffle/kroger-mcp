@@ -77,7 +77,20 @@ integration code either way, so it can't silently stop compiling.
    works.
 3. The workflow creates the tag (manual runs only), pushes the image
    (`X.Y.Z`, `X.Y`, `latest`) for amd64 and arm64, creates the GitHub release
-   with binaries, and then commits `CHANGELOG.md` to `main` in a separate job.
+   with binaries and a `SHA256SUMS` file, and then commits `CHANGELOG.md` to
+   `main` in a separate job.
+
+Binaries are static (`CGO_ENABLED=0`) and built with `-trimpath`. The image ships an
+SBOM and max-mode build provenance. Once the repo is public, the workflow also adds
+GitHub build-provenance attestations for every binary and the image. They're skipped
+while it's private, because attestations need a public repo or GitHub Enterprise Cloud.
+To verify a download:
+
+```sh
+sha256sum -c SHA256SUMS --ignore-missing
+gh attestation verify kroger-mcp-linux-amd64 --repo philosowaffle/kroger-cart
+gh attestation verify oci://ghcr.io/philosowaffle/kroger-mcp:vX.Y.Z --repo philosowaffle/kroger-cart
+```
 
 Release builds stamp the tag and commit into the binary (`-ldflags -X`), so
 `kroger-mcp -version` and the MCP `serverInfo.version` report e.g. `v0.1.0`;
@@ -94,6 +107,18 @@ The first push creates the GHCR package as **private**. Either make it public
 If `main` is protected, the changelog job's push fails. The release and image
 are unaffected. Allow `github-actions[bot]` to bypass the protection, or drop
 that job.
+
+## CI and dependency updates
+
+- Every action in `.github/workflows/` is pinned to a commit SHA with a
+  `# vX.Y.Z` comment. Dependabot (`.github/dependabot.yml`) opens weekly grouped
+  PRs for actions, Go modules and Docker base images, and updates the SHA and
+  the comment together. Don't hand-edit a pin back to a tag.
+- golangci-lint is pinned in `pr-checks.yml`. To bump it, change the `version:`
+  there and the version you run locally in the same PR.
+- The **Security** workflow runs `govulncheck` on PRs, on `main` and weekly, and
+  CodeQL on PRs and `main`. CodeQL is skipped while the repo is private, because
+  uploading code-scanning results there needs GitHub Advanced Security.
 
 ## Runtime State
 

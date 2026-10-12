@@ -18,6 +18,10 @@ on:
 env:
   IMAGE: ghcr.io/${{ github.repository_owner }}/kroger-mcp
 
+# Jobs widen this as they need to.
+permissions:
+  contents: read
+
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
@@ -32,7 +36,7 @@ jobs:
       release: ${{ steps.mode.outputs.release }}
       version: ${{ steps.mode.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
 
@@ -78,14 +82,17 @@ jobs:
     permissions:
       contents: read
       packages: write
+      # Build-provenance attestation for the image.
+      attestations: write
+      id-token: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ needs.prepare.outputs.version || github.sha }}
 
-      - uses: docker/setup-buildx-action@v4
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
-      - uses: docker/login-action@v4
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -93,9 +100,12 @@ jobs:
 
       - name: Image tags
         id: meta
-        uses: docker/metadata-action@v6
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
           images: ${{ env.IMAGE }}
+          # Set explicitly rather than relying on GitHub's license detection.
+          labels: |
+            org.opencontainers.image.licenses=GPL-3.0-only
           # Release: 1.2.3, 1.2, latest.  Merge to main: main, sha-abc1234.
           tags: |
             type=semver,pattern={{version}},value=${{ needs.prepare.outputs.version }},enable=${{ needs.prepare.outputs.release == 'true' }}
@@ -105,7 +115,8 @@ jobs:
             type=sha,enable=${{ needs.prepare.outputs.release != 'true' }}
 
       - name: Build and push image
-        uses: docker/build-push-action@v7
+        id: build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           platforms: linux/amd64,linux/arm64
@@ -117,6 +128,18 @@ jobs:
             COMMIT=${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          sbom: true
+          provenance: mode=max
+
+      # Attestations need a public repo (or GitHub Enterprise Cloud), so skip
+      # them while the repo is private rather than fail every merge to main.
+      - name: Attest image
+        if: ${{ !github.event.repository.private }}
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ${{ env.IMAGE }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
 
   release:
     needs: [prepare, image]
@@ -124,26 +147,33 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      # Build-provenance attestation for the binaries.
+      attestations: write
+      id-token: write
     env:
       VERSION: ${{ needs.prepare.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ needs.prepare.outputs.version }}
           fetch-depth: 0
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
           go-version-file: go.mod
 
       - name: Generate release notes
-        uses: orhun/git-cliff-action@v4
+        uses: orhun/git-cliff-action@a9a95522b26fe6403f7bb24031f21fb573d0f5ff # v4.9.1
         id: cliff
         with:
           config: cliff.toml
           args: --current --strip header
 
       - name: Build binaries
+        env:
+          # Static, reproducible binaries: no cgo, no local paths embedded.
+          CGO_ENABLED: "0"
+          GOFLAGS: -trimpath
         run: |
           mkdir -p dist
           pkg=github.com/philosowaffle/kroger-cart/internal/server
@@ -152,9 +182,17 @@ jobs:
           GOOS=linux   GOARCH=arm64 go build -ldflags "$ldflags" -o dist/kroger-mcp-linux-arm64   .
           GOOS=darwin  GOARCH=arm64 go build -ldflags "$ldflags" -o dist/kroger-mcp-darwin-arm64  .
           GOOS=windows GOARCH=amd64 go build -ldflags "$ldflags" -o dist/kroger-mcp-windows-amd64.exe .
+          # Checksums of the binaries: `sha256sum -c SHA256SUMS` in a download folder.
+          (cd dist && sha256sum kroger-mcp-* > SHA256SUMS)
+
+      - name: Attest binaries
+        if: ${{ !github.event.repository.private }}
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-checksums: dist/SHA256SUMS
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           tag_name: ${{ env.VERSION }}
           body: |
@@ -171,13 +209,13 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: main
           fetch-depth: 0
 
       - name: Generate CHANGELOG.md
-        uses: orhun/git-cliff-action@v4
+        uses: orhun/git-cliff-action@a9a95522b26fe6403f7bb24031f21fb573d0f5ff # v4.9.1
         with:
           config: cliff.toml
           args: --verbose
