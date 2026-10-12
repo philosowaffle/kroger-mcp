@@ -58,6 +58,7 @@ type Server struct {
 	cartAdds     []CartAdd
 	lastVerifier string
 	failures     map[string]failure
+	profileID    string
 }
 
 // failure is a canned error response queued by FailNext.
@@ -127,6 +128,14 @@ func (s *Server) FailNext(path string, n, status int, retryAfter string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.failures[path] = failure{n: n, status: status, retryAfter: retryAfter}
+}
+
+// SetProfile changes the profile ID /identity/profile returns, to simulate a
+// different shopper linking. Empty restores ProfileID.
+func (s *Server) SetProfile(id string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.profileID = id
 }
 
 // CartAdds returns every recorded cart add, oldest first.
@@ -357,7 +366,13 @@ func (s *Server) cartAdd(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) profile(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]any{"data": map[string]string{"id": ProfileID}})
+	s.mu.Lock()
+	id := s.profileID
+	s.mu.Unlock()
+	if id == "" {
+		id = ProfileID
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"data": map[string]string{"id": id}})
 }
 
 // LastVerifier is the PKCE code_verifier sent with the latest code exchange.

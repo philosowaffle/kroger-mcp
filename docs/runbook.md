@@ -13,7 +13,7 @@
 2. Create `.env` (gitignored) with at least `KROGER_CLIENT_ID` and
    `KROGER_CLIENT_SECRET`. See the Config table in `README.md`.
 3. `task test` to confirm everything passes.
-4. `task run` to start on `:8080`, with state in `./data/`.
+4. `task run` to start on `127.0.0.1:8080`, with state in `./data/`.
 5. `claude mcp add --transport http kroger http://localhost:8080`
 
 For the Docker path, `task docker:up` pulls and starts the published image

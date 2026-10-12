@@ -125,6 +125,16 @@ func (c *Client) Linked() bool {
 	return c.state.get().UserToken != nil
 }
 
+// LinkedProfileID returns the profile ID recorded at the last link, or "" if
+// none is linked or it wasn't recorded.
+func (c *Client) LinkedProfileID() string {
+	s := c.state.get()
+	if s.UserToken == nil {
+		return ""
+	}
+	return s.ProfileID
+}
+
 // ResolveLocationID picks the store to scope a request to: an explicit id,
 // then the saved preference, then KROGER_LOCATION_ID. It may return "".
 func (c *Client) ResolveLocationID(explicit string) string {

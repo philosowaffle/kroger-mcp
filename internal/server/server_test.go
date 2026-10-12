@@ -239,6 +239,23 @@ func TestAccountAndCartFlow(t *testing.T) {
 	}
 }
 
+// TestKrogerLogin_WarnsWhenReplacingLink covers #25: a second kroger_login
+// says it would replace the linked account.
+func TestKrogerLogin_WarnsWhenReplacingLink(t *testing.T) {
+	h := newHarness(t)
+	var login struct{ Warning string }
+	h.mustCall(t, "kroger_login", nil, &login)
+	if login.Warning != "" {
+		t.Errorf("warning before any link = %q", login.Warning)
+	}
+
+	h.link(t)
+	h.mustCall(t, "kroger_login", nil, &login)
+	if !strings.Contains(login.Warning, "replaces") || !strings.Contains(login.Warning, krogertest.ProfileID) {
+		t.Errorf("warning = %q, want replace notice naming %s", login.Warning, krogertest.ProfileID)
+	}
+}
+
 func TestExpiredLinkReportedByStatus(t *testing.T) {
 	h := newHarness(t)
 	h.link(t)

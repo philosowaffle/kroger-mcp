@@ -1,10 +1,12 @@
 package kroger
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -1000,6 +1002,55 @@ func TestGetProfile(t *testing.T) {
 	}
 	if p.ID != krogertest.ProfileID {
 		t.Errorf("ID = %q", p.ID)
+	}
+}
+
+// TestLinkRecordsProfile covers #25: each link records the shopper's profile,
+// so replacing one account with another is visible and logged.
+func TestLinkRecordsProfile(t *testing.T) {
+	c, fake := newTestClient(t)
+	if id := c.LinkedProfileID(); id != "" {
+		t.Fatalf("LinkedProfileID before link = %q, want empty", id)
+	}
+	link(t, c)
+	if id := c.LinkedProfileID(); id != krogertest.ProfileID {
+		t.Fatalf("LinkedProfileID = %q, want %q", id, krogertest.ProfileID)
+	}
+
+	var logs bytes.Buffer
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&logs, nil)))
+	t.Cleanup(func() { slog.SetDefault(prev) })
+
+	fake.SetProfile("someone-else")
+	link(t, c)
+	if id := c.LinkedProfileID(); id != "someone-else" {
+		t.Errorf("LinkedProfileID after re-link = %q, want someone-else", id)
+	}
+	if got := logs.String(); !strings.Contains(got, "linked account replaced") ||
+		!strings.Contains(got, "previous_profile_id="+krogertest.ProfileID) {
+		t.Errorf("replacement not logged; logs:\n%s", got)
+	}
+
+	// The profile survives a restart.
+	c2, err := New(c.Config())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if id := c2.LinkedProfileID(); id != "someone-else" {
+		t.Errorf("LinkedProfileID after reload = %q", id)
+	}
+}
+
+func TestLinkSurvivesProfileFailure(t *testing.T) {
+	c, fake := newTestClient(t)
+	fake.FailNext("/identity/profile", 1, http.StatusInternalServerError, "")
+	link(t, c)
+	if !c.Linked() {
+		t.Fatal("link failed because the profile read failed")
+	}
+	if id := c.LinkedProfileID(); id != "" {
+		t.Errorf("LinkedProfileID = %q, want empty", id)
 	}
 }
 

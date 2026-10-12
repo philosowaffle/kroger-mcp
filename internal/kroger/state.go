@@ -26,7 +26,10 @@ func (t *token) valid(now time.Time) bool {
 
 // state is everything that must survive a restart.
 type state struct {
-	UserToken           *token `json:"user_token,omitempty"`
+	UserToken *token `json:"user_token,omitempty"`
+	// ProfileID is the linked shopper's Kroger profile, recorded after each
+	// link so a later link can tell whether it replaced a different account.
+	ProfileID           string `json:"profile_id,omitempty"`
 	PreferredLocationID string `json:"preferred_location_id,omitempty"`
 }
 

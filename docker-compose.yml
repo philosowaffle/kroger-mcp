@@ -16,9 +16,18 @@ services:
     container_name: kroger-mcp
     restart: unless-stopped
     ports:
-      - "8080:8080"
+      # Loopback only: reachable from this machine, not the network. Without
+      # MCP auth, anyone who can reach the port can add to your cart or link
+      # their own Kroger account in place of yours. To expose it, set up MCP
+      # auth below (preferred), or publish "8080:8080" on a trusted network.
+      - "127.0.0.1:8080:8080"
     environment:
       KROGER_MCP_ADDR: ":8080"
+      # The server refuses to listen beyond loopback without MCP auth unless
+      # this is set. Inside the container it must listen on all interfaces for
+      # the port mapping to work; the loopback-only publish above is what keeps
+      # it private. Remove this once KROGER_MCP_OIDC_ISSUER is set.
+      KROGER_MCP_ALLOW_UNAUTHENTICATED: "true"
       # KROGER_MCP_LOG_LEVEL: "info"   # set "trace" for per-request logs
       # --- Kroger developer app (required) ---
       KROGER_CLIENT_ID: "${KROGER_CLIENT_ID:?set KROGER_CLIENT_ID}"
@@ -30,7 +39,8 @@ services:
       # KROGER_MODALITY: "PICKUP"       # PICKUP or DELIVERY
       # --- MCP auth (optional) ---
       # Set an OIDC issuer to require OAuth bearer tokens (protected resource).
-      # Leave unset to run unauthenticated (LAN/VPN only). See README.
+      # Leave unset to run unauthenticated (loopback or a trusted network
+      # only). See README "Authentication".
       # KROGER_MCP_OIDC_ISSUER: "https://auth.example.com"
       # KROGER_MCP_OIDC_RESOURCE: "https://kroger-mcp.example.com"
       # KROGER_MCP_OIDC_SCOPES: "mcp"

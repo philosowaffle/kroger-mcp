@@ -27,6 +27,8 @@ state stops a drive-by callback, but not someone who can call the MCP tool.
   costly later. Release notes must call it out for existing LAN setups.
 - Loopback means the host part of `KROGER_MCP_ADDR` is `localhost` or a loopback IP. An
   empty host (`:8080`), `0.0.0.0`, `::` and any other hostname count as exposed.
+- The binary's default `KROGER_MCP_ADDR` moves from `:8080` to `127.0.0.1:8080`, so a
+  bare local run keeps working. The image still sets `:8080`.
 - Inside a container the server must listen on `:8080` to be reachable through the port
   mapping, so the compose file sets `KROGER_MCP_ALLOW_UNAUTHENTICATED=true` *together with*
   the loopback-only port publish, with a comment. A bare `docker run` with neither auth

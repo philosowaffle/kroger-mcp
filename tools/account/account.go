@@ -15,6 +15,9 @@ import (
 type LoginResult struct {
 	URL          string `json:"url"`
 	Instructions string `json:"instructions"`
+	// Warning is set when an account is already linked: completing this
+	// login replaces it.
+	Warning string `json:"warning,omitempty"`
 }
 
 // StatusResult is the output of kroger_auth_status.
@@ -31,17 +34,24 @@ type StatusResult struct {
 func AddTools(s *mcp.Server, c *kroger.Client) {
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        "kroger_login",
-		Description: "Start linking the shopper's Kroger account, which add_to_cart needs. Returns a single-use URL for the shopper to open in a browser and sign in with their Kroger (or King Soopers, Ralphs, etc.) account. The link expires after 15 minutes. Searching products and stores works without linking.",
+		Description: "Start linking the shopper's Kroger account, which add_to_cart needs. Returns a single-use URL for the shopper to open in a browser and sign in with their Kroger (or King Soopers, Ralphs, etc.) account. The link expires after 15 minutes. If an account is already linked, signing in replaces it; the result warns when that's the case. Searching products and stores works without linking.",
 		Annotations: &mcp.ToolAnnotations{Title: "Link Kroger account", DestructiveHint: new(false)},
 	}, func(context.Context, *mcp.CallToolRequest, struct{}) (*mcp.CallToolResult, LoginResult, error) {
 		u, err := c.AuthorizeURL()
 		if err != nil {
 			return nil, LoginResult{}, err
 		}
-		return nil, LoginResult{
+		res := LoginResult{
 			URL:          u,
 			Instructions: "Open this URL, sign in to Kroger and approve access. When the page says the account is linked, come back here; kroger_auth_status confirms it.",
-		}, nil
+		}
+		if c.Linked() {
+			res.Warning = "A Kroger account is already linked. Signing in with this URL replaces it, and future cart adds go to whichever account signs in. Only continue if the shopper means to switch or re-link their own account."
+			if id := c.LinkedProfileID(); id != "" {
+				res.Warning += " Currently linked profile: " + id + "."
+			}
+		}
+		return nil, res, nil
 	})
 
 	mcp.AddTool(s, &mcp.Tool{
