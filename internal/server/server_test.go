@@ -316,6 +316,19 @@ func TestSearchProductsFilters(t *testing.T) {
 	}
 }
 
+func TestSearchProducts_BrandAlone(t *testing.T) {
+	h := newHarness(t)
+	var res struct{ Products []kroger.Product }
+	h.mustCall(t, "search_products", map[string]any{"brand": "Kroger"}, &res)
+	if len(res.Products) != 1 {
+		t.Fatalf("products = %+v", res.Products)
+	}
+	qs := h.fake.Queries("/products")
+	if q := qs[len(qs)-1]; q.Get("filter.term") != "Kroger" || q.Get("filter.brand") != "Kroger" {
+		t.Errorf("query = %v", q)
+	}
+}
+
 func TestLocationTools(t *testing.T) {
 	h := newHarness(t)
 

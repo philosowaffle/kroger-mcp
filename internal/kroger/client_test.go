@@ -508,8 +508,39 @@ func TestSearchProducts(t *testing.T) {
 			"filter.productId": krogertest.ProductID + ",0000000000001",
 			"filter.term":      "",
 		})
-		if _, err := c.SearchProducts(ctx, ProductQuery{Brand: "Kroger"}); err != nil {
-			t.Errorf("brand-only search: %v", err)
+	})
+
+	t.Run("brand alone searches by brand", func(t *testing.T) {
+		got, err := c.SearchProducts(ctx, ProductQuery{Brand: " Simple Truth "})
+		if err != nil {
+			t.Fatalf("brand-only search: %v", err)
+		}
+		if len(got) != 1 {
+			t.Errorf("got %d products", len(got))
+		}
+		assertQuery(t, lastQuery(t, fake, "/products"), map[string]string{
+			"filter.term":  "Simple Truth",
+			"filter.brand": "Simple Truth",
+		})
+	})
+
+	t.Run("brand with product ids stays a filter", func(t *testing.T) {
+		if _, err := c.SearchProducts(ctx, ProductQuery{ProductIDs: []string{krogertest.ProductID}, Brand: "Kroger"}); err != nil {
+			t.Fatal(err)
+		}
+		assertQuery(t, lastQuery(t, fake, "/products"), map[string]string{
+			"filter.term":  "",
+			"filter.brand": "Kroger",
+		})
+	})
+
+	t.Run("nothing to search for", func(t *testing.T) {
+		before := len(fake.Queries("/products"))
+		if _, err := c.SearchProducts(ctx, ProductQuery{Brand: " ", LocationID: krogertest.LocationID}); err == nil || !strings.Contains(err.Error(), "one of term") {
+			t.Errorf("err = %v, want missing-input error", err)
+		}
+		if n := len(fake.Queries("/products")); n != before {
+			t.Errorf("empty search reached the API")
 		}
 	})
 

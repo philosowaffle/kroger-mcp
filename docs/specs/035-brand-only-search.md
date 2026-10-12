@@ -1,7 +1,7 @@
 # Spec: Brand-only product search
 
 **Issue:** #35
-**Status:** In Progress
+**Status:** Complete
 
 ## Problem
 
@@ -12,12 +12,12 @@ of those, so a brand-only call fails with a raw API error.
 
 ## Acceptance Criteria
 
-- [ ] A brand-only search sends the brand as `filter.term` (and keeps `filter.brand`),
+- [x] A brand-only search sends the brand as `filter.term` (and keeps `filter.brand`),
       so Kroger accepts it and returns that brand's products.
-- [ ] A search with a term or product ids is unchanged: the brand stays a filter only.
-- [ ] A search with none of term, product ids or brand is still rejected before
+- [x] A search with a term or product ids is unchanged: the brand stays a filter only.
+- [x] A search with none of term, product ids or brand is still rejected before
       calling Kroger.
-- [ ] The fake Kroger API rejects a product search without a term or product id,
+- [x] The fake Kroger API rejects a product search without a term or product id,
       as the real API does, so the tests catch a regression.
 
 ## Notes
@@ -26,3 +26,7 @@ of those, so a brand-only call fails with a raw API error.
   Using the brand as the term keeps "show me Simple Truth products" working in one
   call, which is what a shopper means.
 - The tool schema text says brand alone works as a search.
+- Tests: `TestSearchProducts` ("brand alone searches by brand", "brand with product
+  ids stays a filter", "nothing to search for") and `TestSearchProducts_BrandAlone`
+  over MCP. The fake's `/products` now returns PRODUCT-2016 for a search with no
+  term or product id.

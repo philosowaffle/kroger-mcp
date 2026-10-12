@@ -260,6 +260,12 @@ func product(scoped bool) map[string]any {
 
 func (s *Server) products(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
+	if q.Get("filter.term") == "" && q.Get("filter.productId") == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"errors": map[string]string{
+			"reason": "Field 'term' or 'productId' must be used", "code": "PRODUCT-2016",
+		}})
+		return
+	}
 	if q.Get("filter.term") == "nothing" || (q.Has("filter.productId") && !strings.Contains(q.Get("filter.productId"), ProductID)) {
 		writeJSON(w, http.StatusOK, map[string]any{"data": []any{}})
 		return
