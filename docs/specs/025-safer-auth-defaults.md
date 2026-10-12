@@ -1,7 +1,7 @@
 # Spec: Safer defaults when MCP auth is off
 
 **Issue:** #25
-**Status:** In Progress
+**Status:** Complete
 
 ## Problem
 
@@ -13,13 +13,14 @@ state stops a drive-by callback, but not someone who can call the MCP tool.
 
 ## Acceptance Criteria
 
-- [ ] Default compose binds only to loopback (`127.0.0.1:8080:8080`).
-- [ ] With auth off, the server refuses to start on a non-loopback listen address unless
+- [x] Default compose binds only to loopback (`127.0.0.1:8080:8080`).
+- [x] With auth off, the server refuses to start on a non-loopback listen address unless
       `KROGER_MCP_ALLOW_UNAUTHENTICATED=true`; a test covers start-up on loopback,
       non-loopback, and non-loopback with the opt-in.
-- [ ] `kroger_login` output warns when completing it would replace an existing link.
-- [ ] A link that replaces a different profile is logged at info with both profile IDs.
-- [ ] README and SECURITY notes explain the risk and the opt-in.
+- [x] `kroger_login` output warns when completing it would replace an existing link.
+- [x] A link that replaces a different profile is logged at info with both profile IDs.
+- [x] The README explains the risk and the opt-in ("Running without auth"). SECURITY.md
+      doesn't exist yet; #23 adds it and should link to that section.
 
 ## Notes
 
@@ -36,3 +37,10 @@ state stops a drive-by callback, but not someone who can call the MCP tool.
 - The profile ID is fetched once after each successful link (best effort; a failure
   doesn't fail the link) and stored in `state.json`, so a later link can tell whether it
   replaced a different account.
+- Tests: `TestIsLoopback`, `TestCheckExposure_AuthOffNonLoopback`,
+  `TestRun_RefusesUnauthenticatedExposure` (main), `TestKrogerLogin_WarnsWhenReplacingLink`
+  (server), `TestLinkRecordsProfile` and `TestLinkSurvivesProfileFailure` (kroger).
+- The profile read after a link uses the new token as-is (`profileWith`), so a failure
+  never triggers a refresh that could unlink.
+- **Release note:** a non-loopback `KROGER_MCP_ADDR` with auth off now refuses to start.
+  Existing LAN setups set `KROGER_MCP_ALLOW_UNAUTHENTICATED=true`.
