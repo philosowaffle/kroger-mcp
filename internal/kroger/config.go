@@ -12,6 +12,10 @@ import (
 const (
 	// DefaultBaseURL is the Kroger Public API root.
 	DefaultBaseURL = "https://api.kroger.com/v1"
+	// CertificationBaseURL is Kroger's certification (test) environment. It
+	// has no shopper accounts, so the cart and identity APIs only work against
+	// production.
+	CertificationBaseURL = "https://api-ce.kroger.com/v1"
 	// DefaultRedirectURI matches a server running locally on the default port.
 	DefaultRedirectURI = "http://localhost:8080/kroger/callback"
 	// DefaultDataDir is where state is persisted when KROGER_MCP_DATA_DIR is unset.
@@ -40,7 +44,8 @@ type Config struct {
 	DefaultModality string
 	// DataDir holds state.json (linked-account tokens and preferences).
 	DataDir string
-	// BaseURL overrides the API root; tests point it at a fake server.
+	// BaseURL is the API root: production by default, the certification
+	// environment for testing, or a fake server in unit tests.
 	BaseURL string
 }
 
@@ -53,7 +58,7 @@ func ConfigFromEnv() Config {
 		DefaultLocationID: strings.TrimSpace(os.Getenv("KROGER_LOCATION_ID")),
 		DefaultModality:   strings.ToUpper(envOr("KROGER_MODALITY", ModalityPickup)),
 		DataDir:           envOr("KROGER_MCP_DATA_DIR", DefaultDataDir),
-		BaseURL:           DefaultBaseURL,
+		BaseURL:           strings.TrimRight(envOr("KROGER_API_BASE_URL", DefaultBaseURL), "/"),
 	}
 }
 
@@ -78,6 +83,9 @@ func (c Config) Validate() error {
 	}
 	if m := c.DefaultModality; m != "" && m != ModalityPickup && m != ModalityDelivery {
 		errs = append(errs, fmt.Errorf("KROGER_MODALITY must be PICKUP or DELIVERY, got %q", m))
+	}
+	if u, err := url.Parse(c.BaseURL); c.BaseURL != "" && (err != nil || u.Scheme == "" || u.Host == "") {
+		errs = append(errs, fmt.Errorf("KROGER_API_BASE_URL %q must be an absolute URL", c.BaseURL))
 	}
 	if c.DataDir == "" {
 		errs = append(errs, errors.New("KROGER_MCP_DATA_DIR must not be empty"))

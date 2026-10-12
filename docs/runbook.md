@@ -29,11 +29,41 @@ See `Taskfile.yml`. Key ones:
 task build         # compile to bin/kroger-mcp
 task run           # go run . with .env loaded
 task test          # unit + in-memory end-to-end tests
+task test:integration  # live tests against the Kroger certification API
 task lint          # golangci-lint
 task docker:build  # build image
 task docker:up     # docker compose up -d (published image)
 task docker:down   # docker compose down
 ```
+
+## Integration Tests
+
+`integration/` holds tests that call a live Kroger API, gated behind the
+`integration` build tag so `go test ./...` never runs them. By default they hit
+the certification environment (`https://api-ce.kroger.com/v1`). They cover
+locations, chains, departments and products through the client, and every
+read-only tool end to end through a real MCP session.
+
+The cart and identity APIs aren't covered: certification has no shopper
+accounts, and production would mean writing to a real cart.
+
+Run them locally with certification credentials in `.env`:
+
+```bash
+KROGER_CLIENT_ID=...       # a certification app, not your production one
+KROGER_CLIENT_SECRET=...
+# optional: KROGER_TEST_ZIP=45202  (zip to search near)
+task test:integration
+```
+
+Without credentials the tests skip.
+
+In CI, the `integration` job in `pr-checks.yml` runs them on every PR. It
+needs two repository secrets: `KROGER_CERT_CLIENT_ID` and
+`KROGER_CERT_CLIENT_SECRET`. A repository variable `KROGER_TEST_ZIP` overrides
+the default zip. If the secrets are missing (as on PRs from forks), the job
+passes with a warning instead of failing. The `checks` job vets the
+integration code either way, so it can't silently stop compiling.
 
 ## Releasing
 

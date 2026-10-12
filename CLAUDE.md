@@ -306,6 +306,11 @@ Set native GitHub `Blocks` / `Blocked by` relationships on issues to track depen
 - **Tests:** tool behaviour is tested end-to-end in `internal/server` over the SDK's
   in-memory transport against the fake API in `internal/kroger/krogertest`. Extend the
   fake when adding endpoints rather than mocking the client.
+- **Integration tests** live in `integration/` (build tag `integration`) and hit the Kroger
+  certification API (`https://api-ce.kroger.com/v1`) with app-token calls only. Cert has no
+  shopper accounts, so cart and identity stay out. When you add a read-only tool, add a case
+  to `TestMCPTools` too. They run as the `integration` PR check using the
+  `KROGER_CERT_CLIENT_ID` / `KROGER_CERT_CLIENT_SECRET` secrets.
 - **Adding a tool:** add it under `tools/`, register it in `server.New()`, and add a case
   to `internal/server/server_test.go` (including the `TestListTools` list).
 - **First live run is still needed**: the ⚠️ items in `docs/api-research.md` are unvalidated.

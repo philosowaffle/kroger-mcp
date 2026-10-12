@@ -51,7 +51,7 @@ func link(t *testing.T, c *Client) {
 
 func TestConfigFromEnv(t *testing.T) {
 	t.Run("defaults", func(t *testing.T) {
-		for _, k := range []string{"KROGER_CLIENT_ID", "KROGER_CLIENT_SECRET", "KROGER_REDIRECT_URI", "KROGER_LOCATION_ID", "KROGER_MODALITY", "KROGER_MCP_DATA_DIR"} {
+		for _, k := range []string{"KROGER_CLIENT_ID", "KROGER_CLIENT_SECRET", "KROGER_REDIRECT_URI", "KROGER_LOCATION_ID", "KROGER_MODALITY", "KROGER_MCP_DATA_DIR", "KROGER_API_BASE_URL"} {
 			t.Setenv(k, "")
 		}
 		got := ConfigFromEnv()
@@ -72,6 +72,7 @@ func TestConfigFromEnv(t *testing.T) {
 		t.Setenv("KROGER_LOCATION_ID", "123")
 		t.Setenv("KROGER_MODALITY", "delivery")
 		t.Setenv("KROGER_MCP_DATA_DIR", "/data")
+		t.Setenv("KROGER_API_BASE_URL", CertificationBaseURL+"/")
 		got := ConfigFromEnv()
 		want := Config{
 			ClientID:          "id",
@@ -80,7 +81,7 @@ func TestConfigFromEnv(t *testing.T) {
 			DefaultLocationID: "123",
 			DefaultModality:   ModalityDelivery,
 			DataDir:           "/data",
-			BaseURL:           DefaultBaseURL,
+			BaseURL:           CertificationBaseURL,
 		}
 		if got != want {
 			t.Errorf("got %+v, want %+v", got, want)
@@ -101,6 +102,7 @@ func TestConfigValidate(t *testing.T) {
 		{"relative redirect", func(c *Config) { c.RedirectURI = "/callback" }, "KROGER_REDIRECT_URI"},
 		{"bad modality", func(c *Config) { c.DefaultModality = "SHIP" }, "KROGER_MODALITY"},
 		{"empty data dir", func(c *Config) { c.DataDir = "" }, "KROGER_MCP_DATA_DIR"},
+		{"relative base url", func(c *Config) { c.BaseURL = "api.kroger.com/v1" }, "KROGER_API_BASE_URL"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

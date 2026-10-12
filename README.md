@@ -154,6 +154,7 @@ in the connector's **Advanced settings**.
 | `KROGER_LOCATION_ID`       | (unset)                                 | Default store when none is saved or passed.               |
 | `KROGER_MODALITY`          | `PICKUP`                                | Default cart modality: `PICKUP` or `DELIVERY`.            |
 | `KROGER_MCP_ADDR`          | `:8080`                                 | Listen address.                                           |
+| `KROGER_API_BASE_URL`      | `https://api.kroger.com/v1`             | Kroger API root. `https://api-ce.kroger.com/v1` is the certification environment (no shopper accounts, so no cart). |
 | `KROGER_MCP_DATA_DIR`      | `data` (`/data` in the image)           | Where `state.json` is kept.                               |
 | `KROGER_MCP_LOG_LEVEL`     | `info`                                  | `trace`/`debug`/`info`/`warn`/`error`. Request logs are at `trace`. |
 | `KROGER_MCP_OIDC_ISSUER`   | (unset)                                 | OIDC issuer URL. Set to enable MCP auth.                  |
@@ -175,7 +176,8 @@ in the connector's **Advanced settings**.
 ## Development
 
 ```sh
-task test    # go test ./...
+task test              # go test ./...
+task test:integration  # live tests against the Kroger certification API (needs cert credentials)
 task lint    # golangci-lint
 task run     # go run . (loads .env)
 ```
