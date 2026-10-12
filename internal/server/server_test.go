@@ -122,6 +122,19 @@ func TestServerInstructions(t *testing.T) {
 	}
 }
 
+// TestServerInfoVersion covers #29: serverInfo.version is the build-time
+// Version, "dev" in an untagged build.
+func TestServerInfoVersion(t *testing.T) {
+	h := newHarness(t)
+	info := h.cs.InitializeResult().ServerInfo
+	if info.Name != Name || info.Version != Version {
+		t.Errorf("serverInfo = %s %s, want %s %s", info.Name, info.Version, Name, Version)
+	}
+	if Version != "dev" {
+		t.Errorf("Version = %q without ldflags, want dev", Version)
+	}
+}
+
 func TestSearchLocationsAndSetPreferred(t *testing.T) {
 	h := newHarness(t)
 
@@ -236,6 +249,23 @@ func TestAccountAndCartFlow(t *testing.T) {
 	bad := map[string]any{"items": []any{map[string]any{"upc": "1", "modality": "SHIP"}}}
 	if msg := h.call(t, "add_to_cart", bad, nil); !strings.Contains(msg, "modality") {
 		t.Errorf("bad modality: error = %q", msg)
+	}
+}
+
+// TestKrogerLogin_WarnsWhenReplacingLink covers #25: a second kroger_login
+// says it would replace the linked account.
+func TestKrogerLogin_WarnsWhenReplacingLink(t *testing.T) {
+	h := newHarness(t)
+	var login struct{ Warning string }
+	h.mustCall(t, "kroger_login", nil, &login)
+	if login.Warning != "" {
+		t.Errorf("warning before any link = %q", login.Warning)
+	}
+
+	h.link(t)
+	h.mustCall(t, "kroger_login", nil, &login)
+	if !strings.Contains(login.Warning, "replaces") || !strings.Contains(login.Warning, krogertest.ProfileID) {
+		t.Errorf("warning = %q, want replace notice naming %s", login.Warning, krogertest.ProfileID)
 	}
 }
 

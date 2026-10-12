@@ -1,10 +1,12 @@
 package kroger
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -1003,6 +1005,55 @@ func TestGetProfile(t *testing.T) {
 	}
 }
 
+// TestLinkRecordsProfile covers #25: each link records the shopper's profile,
+// so replacing one account with another is visible and logged.
+func TestLinkRecordsProfile(t *testing.T) {
+	c, fake := newTestClient(t)
+	if id := c.LinkedProfileID(); id != "" {
+		t.Fatalf("LinkedProfileID before link = %q, want empty", id)
+	}
+	link(t, c)
+	if id := c.LinkedProfileID(); id != krogertest.ProfileID {
+		t.Fatalf("LinkedProfileID = %q, want %q", id, krogertest.ProfileID)
+	}
+
+	var logs bytes.Buffer
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&logs, nil)))
+	t.Cleanup(func() { slog.SetDefault(prev) })
+
+	fake.SetProfile("someone-else")
+	link(t, c)
+	if id := c.LinkedProfileID(); id != "someone-else" {
+		t.Errorf("LinkedProfileID after re-link = %q, want someone-else", id)
+	}
+	if got := logs.String(); !strings.Contains(got, "linked account replaced") ||
+		!strings.Contains(got, "previous_profile_id="+krogertest.ProfileID) {
+		t.Errorf("replacement not logged; logs:\n%s", got)
+	}
+
+	// The profile survives a restart.
+	c2, err := New(c.Config())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if id := c2.LinkedProfileID(); id != "someone-else" {
+		t.Errorf("LinkedProfileID after reload = %q", id)
+	}
+}
+
+func TestLinkSurvivesProfileFailure(t *testing.T) {
+	c, fake := newTestClient(t)
+	fake.FailNext("/identity/profile", 1, http.StatusInternalServerError, "")
+	link(t, c)
+	if !c.Linked() {
+		t.Fatal("link failed because the profile read failed")
+	}
+	if id := c.LinkedProfileID(); id != "" {
+		t.Errorf("LinkedProfileID = %q, want empty", id)
+	}
+}
+
 func TestCallbackHandler(t *testing.T) {
 	c, _ := newTestClient(t)
 	h := c.CallbackHandler()
@@ -1212,7 +1263,7 @@ func TestRateLimits(t *testing.T) {
 		}
 	})
 
-	t.Run("cancelled wait does not retry", func(t *testing.T) {
+	t.Run("canceled wait does not retry", func(t *testing.T) {
 		c, fake := newTestClient(t)
 		c.sleep = func(context.Context, time.Duration) error { return context.Canceled }
 		fake.FailNext("/products", 1, http.StatusTooManyRequests, "1")
@@ -1265,6 +1316,26 @@ func TestAPIErrorMessage(t *testing.T) {
 	}
 }
 
+// TestAPIErrorMessage_RedactsSecrets covers #29: error text returned to
+// Claude never carries a credential, even if Kroger echoes one.
+func TestAPIErrorMessage_RedactsSecrets(t *testing.T) {
+	body := `{"error":"invalid_grant","access_token":"AT-secret","refresh_token" : "RT-secret","code":"CODE-secret","id_token":"ID-secret"}`
+	msg := (&APIError{Status: 400, Body: body}).Error()
+	for _, secret := range []string{"AT-secret", "RT-secret", "CODE-secret", "ID-secret"} {
+		if strings.Contains(msg, secret) {
+			t.Errorf("message leaks %s: %s", secret, msg)
+		}
+	}
+	if !strings.Contains(msg, "invalid_grant") || !strings.Contains(msg, `"access_token":"[redacted]"`) {
+		t.Errorf("message = %s", msg)
+	}
+
+	long := (&APIError{Status: 500, Body: strings.Repeat("é", 600)}).Error()
+	if !strings.HasSuffix(long, "…") || strings.Count(long, "é") != maxErrorBody {
+		t.Errorf("long body not cut to %d runes: len %d", maxErrorBody, len(long))
+	}
+}
+
 func TestSleepCtx(t *testing.T) {
 	if err := sleepCtx(context.Background(), time.Millisecond); err != nil {
 		t.Errorf("sleep: %v", err)
@@ -1272,6 +1343,6 @@ func TestSleepCtx(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	if err := sleepCtx(ctx, time.Hour); !errors.Is(err, context.Canceled) {
-		t.Errorf("cancelled sleep: %v", err)
+		t.Errorf("canceled sleep: %v", err)
 	}
 }

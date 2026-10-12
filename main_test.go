@@ -159,3 +159,69 @@ func TestAuthMisconfigured(t *testing.T) {
 		t.Fatal("want error when resource is missing")
 	}
 }
+
+func TestIsLoopback(t *testing.T) {
+	tests := []struct {
+		addr string
+		want bool
+	}{
+		{"127.0.0.1:8080", true},
+		{"127.1.2.3:8080", true},
+		{"[::1]:8080", true},
+		{"localhost:8080", true},
+		{"LOCALHOST:8080", true},
+		{":8080", false},
+		{"0.0.0.0:8080", false},
+		{"[::]:8080", false},
+		{"192.168.1.10:8080", false},
+		{"kroger.example.com:8080", false},
+		{"not-an-addr", false},
+	}
+	for _, tt := range tests {
+		if got := isLoopback(tt.addr); got != tt.want {
+			t.Errorf("isLoopback(%q) = %v, want %v", tt.addr, got, tt.want)
+		}
+	}
+}
+
+// TestCheckExposure_AuthOffNonLoopback covers #25: with auth off, the server
+// only starts beyond loopback when the operator opts in.
+func TestCheckExposure_AuthOffNonLoopback(t *testing.T) {
+	tests := []struct {
+		name    string
+		addr    string
+		authOn  bool
+		allow   string
+		wantErr bool
+	}{
+		{"auth off, all interfaces", ":8080", false, "", true},
+		{"auth off, LAN address", "192.168.1.10:8080", false, "", true},
+		{"auth off, opt-in false", ":8080", false, "false", true},
+		{"auth off, opted in", ":8080", false, "true", false},
+		{"auth off, loopback", "127.0.0.1:8080", false, "", false},
+		{"auth on, all interfaces", ":8080", true, "", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv(allowUnauthEnv, tt.allow)
+			err := checkExposure(tt.addr, tt.authOn)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("checkExposure(%q, %v) = %v, wantErr %v", tt.addr, tt.authOn, err, tt.wantErr)
+			}
+			if err != nil && !strings.Contains(err.Error(), allowUnauthEnv) {
+				t.Errorf("error %q doesn't name the opt-in", err)
+			}
+		})
+	}
+}
+
+// TestRun_RefusesUnauthenticatedExposure checks the guard runs at start-up,
+// before anything listens.
+func TestRun_RefusesUnauthenticatedExposure(t *testing.T) {
+	t.Setenv("KROGER_MCP_OIDC_ISSUER", "")
+	t.Setenv(allowUnauthEnv, "")
+	err := run(":0")
+	if err == nil || !strings.Contains(err.Error(), "refusing to listen") {
+		t.Fatalf("run(:0) = %v, want exposure refusal", err)
+	}
+}

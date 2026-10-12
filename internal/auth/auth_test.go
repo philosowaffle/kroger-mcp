@@ -35,6 +35,7 @@ func TestConfigFromEnv(t *testing.T) {
 }
 
 func TestConfigFromEnv_RequireATJWT(t *testing.T) {
+	//nolint:gocritic // mapKey: " FALSE " checks that surrounding whitespace is trimmed.
 	for v, want := range map[string]bool{"": true, "true": true, "yes": true, "false": false, " FALSE ": false, "0": false, "no": false, "off": false} {
 		t.Setenv("KROGER_MCP_OIDC_REQUIRE_AT_JWT", v)
 		if got := ConfigFromEnv().RequireATJWT; got != want {

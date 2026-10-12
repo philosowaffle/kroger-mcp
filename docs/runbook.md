@@ -13,7 +13,7 @@
 2. Create `.env` (gitignored) with at least `KROGER_CLIENT_ID` and
    `KROGER_CLIENT_SECRET`. See the Config table in `README.md`.
 3. `task test` to confirm everything passes.
-4. `task run` to start on `:8080`, with state in `./data/`.
+4. `task run` to start on `127.0.0.1:8080`, with state in `./data/`.
 5. `claude mcp add --transport http kroger http://localhost:8080`
 
 For the Docker path, `task docker:up` pulls and starts the published image
@@ -30,7 +30,8 @@ task build         # compile to bin/kroger-mcp
 task run           # go run . with .env loaded
 task test          # unit + in-memory end-to-end tests
 task test:integration  # live tests against the Kroger certification API
-task lint          # golangci-lint
+task lint          # golangci-lint (config in .golangci.yml)
+task ci            # what PR Checks runs: fmt check, vet, lint, build, test
 task docker:build  # build image
 task docker:up     # docker compose up -d (published image)
 task docker:down   # docker compose down
@@ -77,6 +78,11 @@ integration code either way, so it can't silently stop compiling.
 3. The workflow creates the tag (manual runs only), pushes the image
    (`X.Y.Z`, `X.Y`, `latest`) for amd64 and arm64, creates the GitHub release
    with binaries, and then commits `CHANGELOG.md` to `main` in a separate job.
+
+Release builds stamp the tag and commit into the binary (`-ldflags -X`), so
+`kroger-mcp -version` and the MCP `serverInfo.version` report e.g. `v0.1.0`;
+`main` images report `main`. `task build` uses `git describe`, and a plain
+`go build` reports `dev`.
 
 A manual run fails early, before anything is published, if the version isn't
 `vX.Y.Z`, the tag already exists, or it wasn't started from `main`.

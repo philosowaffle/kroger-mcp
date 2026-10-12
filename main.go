@@ -7,10 +7,14 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -28,16 +32,59 @@ import (
 // session when an old one is gone, so this only bounds abandoned ones.
 const sessionTimeout = time.Hour
 
+// listenAddr defaults to loopback so a bare local run without auth is
+// private. The container image sets KROGER_MCP_ADDR=:8080.
 func listenAddr() string {
 	if addr := os.Getenv("KROGER_MCP_ADDR"); addr != "" {
 		return addr
 	}
-	return ":8080"
+	return "127.0.0.1:8080"
+}
+
+// allowUnauthEnv opts in to serving the MCP endpoint without auth on a
+// non-loopback address.
+const allowUnauthEnv = "KROGER_MCP_ALLOW_UNAUTHENTICATED"
+
+// isLoopback reports whether addr (host:port) listens only on loopback. An
+// empty host binds every interface, so it doesn't count.
+func isLoopback(addr string) bool {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil || host == "" {
+		return false
+	}
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
+}
+
+// checkExposure refuses to serve an unauthenticated MCP endpoint beyond
+// loopback unless the operator opted in. Anyone who can reach it can add to
+// the shopper's cart, or run kroger_login and link their own account in its
+// place.
+func checkExposure(addr string, authOn bool) error {
+	if authOn || isLoopback(addr) {
+		return nil
+	}
+	if allow, _ := strconv.ParseBool(os.Getenv(allowUnauthEnv)); allow {
+		slog.Warn("auth disabled on a non-loopback address; anyone who can reach it can use the linked Kroger account",
+			"addr", addr, allowUnauthEnv, true)
+		return nil
+	}
+	return fmt.Errorf("refusing to listen on %q without auth: set KROGER_MCP_OIDC_ISSUER to require OAuth, "+
+		"listen on loopback (e.g. 127.0.0.1:8080), or set %s=true if the network is trusted", addr, allowUnauthEnv)
 }
 
 func main() {
 	healthcheck := flag.Bool("healthcheck", false, "probe the running server's health endpoint and exit (used by the container HEALTHCHECK)")
+	version := flag.Bool("version", false, "print the version and exit")
 	flag.Parse()
+
+	if *version {
+		fmt.Println(server.Name, server.Version, server.Commit)
+		return
+	}
 
 	logging.Setup()
 	addr := listenAddr()
@@ -57,6 +104,10 @@ func main() {
 }
 
 func run(addr string) error {
+	if err := checkExposure(addr, auth.Enabled()); err != nil {
+		return err
+	}
+
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
@@ -86,7 +137,7 @@ func run(addr string) error {
 
 	errCh := make(chan error, 1)
 	go func() {
-		slog.Info("listening", "service", server.Name, "version", server.Version, "addr", addr)
+		slog.Info("listening", "service", server.Name, "version", server.Version, "commit", server.Commit, "addr", addr)
 		if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			errCh <- err
 		}

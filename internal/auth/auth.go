@@ -157,7 +157,7 @@ func (a *Authenticator) verify(ctx context.Context, token string, _ *http.Reques
 	if a.cfg.RequireATJWT {
 		if err := checkAccessTokenType(token); err != nil {
 			slog.Warn("auth: token rejected", "err", err)
-			return nil, fmt.Errorf("%w: %v", mcpauth.ErrInvalidToken, err)
+			return nil, fmt.Errorf("%w: %w", mcpauth.ErrInvalidToken, err)
 		}
 	}
 
@@ -167,7 +167,7 @@ func (a *Authenticator) verify(ctx context.Context, token string, _ *http.Reques
 		// causes: aud does not contain the resource, an opaque token instead
 		// of a JWT ("malformed jwt"), or an issuer mismatch.
 		slog.Warn("auth: token rejected", "err", err)
-		return nil, fmt.Errorf("%w: %v", mcpauth.ErrInvalidToken, err)
+		return nil, fmt.Errorf("%w: %w", mcpauth.ErrInvalidToken, err)
 	}
 
 	var claims struct {
@@ -176,7 +176,7 @@ func (a *Authenticator) verify(ctx context.Context, token string, _ *http.Reques
 	}
 	if err := idt.Claims(&claims); err != nil {
 		slog.Warn("auth: token rejected", "err", err)
-		return nil, fmt.Errorf("%w: claims: %v", mcpauth.ErrInvalidToken, err)
+		return nil, fmt.Errorf("%w: claims: %w", mcpauth.ErrInvalidToken, err)
 	}
 
 	return &mcpauth.TokenInfo{

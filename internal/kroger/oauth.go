@@ -106,7 +106,32 @@ func (c *Client) CompleteAuthorization(ctx context.Context, st, code string) err
 	if err != nil {
 		return fmt.Errorf("exchange authorization code: %w", err)
 	}
-	return c.state.update(func(s *state) { s.UserToken = t })
+	if err := c.state.update(func(s *state) { s.UserToken = t }); err != nil {
+		return err
+	}
+	c.recordProfile(ctx, t.AccessToken)
+	return nil
+}
+
+// recordProfile stores the newly linked shopper's profile ID and logs when
+// the link replaced a different account, which is how a login by someone
+// else who can reach the MCP endpoint would show up. Best effort: the link
+// itself already succeeded, so this uses the new token as-is rather than
+// refreshing (and possibly unlinking) on failure.
+func (c *Client) recordProfile(ctx context.Context, tok string) {
+	prev := c.state.get().ProfileID
+	p, err := c.profileWith(ctx, tok)
+	if err != nil {
+		slog.Warn("kroger: linked, but couldn't read the profile", "err", err)
+		return
+	}
+	if err := c.state.update(func(s *state) { s.ProfileID = p.ID }); err != nil {
+		slog.Warn("kroger: save profile id", "err", err)
+		return
+	}
+	if prev != "" && prev != p.ID {
+		slog.Info("kroger: linked account replaced", "previous_profile_id", prev, "profile_id", p.ID)
+	}
 }
 
 var callbackPage = template.Must(template.New("callback").Parse(`<!doctype html>

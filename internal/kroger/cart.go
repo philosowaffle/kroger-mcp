@@ -72,6 +72,12 @@ func (c *Client) GetProfile(ctx context.Context) (*Profile, error) {
 	if err != nil {
 		return nil, err
 	}
+	return c.profileWith(ctx, tok)
+}
+
+// profileWith reads the profile using the given user access token, without
+// refreshing it.
+func (c *Client) profileWith(ctx context.Context, tok string) (*Profile, error) {
 	var resp struct {
 		Data Profile `json:"data"`
 	}

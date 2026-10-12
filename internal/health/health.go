@@ -4,6 +4,7 @@
 package health
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"net/http"
@@ -39,8 +40,13 @@ func URL(addr string) string {
 // Check probes the server listening on addr once and returns an error unless
 // it answers 200.
 func Check(addr string) error {
-	client := &http.Client{Timeout: 3 * time.Second}
-	resp, err := client.Get(URL(addr))
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, URL(addr), http.NoBody)
+	if err != nil {
+		return err
+	}
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return err
 	}

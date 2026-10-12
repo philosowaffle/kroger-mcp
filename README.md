@@ -111,8 +111,7 @@ it my default"), and you're ready to shop.
 
 ## Authentication
 
-Authentication is off by default. The server runs unauthenticated, which suits
-internal, LAN or VPN-only deployments. Set `KROGER_MCP_OIDC_ISSUER` to turn
+Authentication is off by default. Set `KROGER_MCP_OIDC_ISSUER` to turn
 kroger-mcp into an OAuth 2.0 **protected resource** (per the MCP authorization
 spec, RFC 9728).
 
@@ -126,6 +125,30 @@ Authelia) and only:
    `iss` / `aud` / `exp`, and a `typ` header of `at+jwt` per RFC 9068) on every
    request. The `typ` check stops an ID token for the same audience from being
    used as an access token.
+
+### Running without auth
+
+Without auth, **anyone who can reach the MCP endpoint can use your linked Kroger
+account**: add items to your cart, or call `kroger_login`, sign in with their
+own Kroger account and replace yours, so your later cart adds land in their
+cart. The single-use login state stops a drive-by callback, but not someone who
+can call the tool.
+
+So with auth off the server only listens on loopback by default:
+
+- If `KROGER_MCP_ADDR` isn't a loopback address (`127.0.0.1:8080`,
+  `localhost:8080`, `[::1]:8080`), it **refuses to start** unless
+  `KROGER_MCP_ALLOW_UNAUTHENTICATED=true` is set. Set that only on a network you
+  trust (a home LAN, a VPN, or behind a reverse proxy that does its own auth).
+- The sample `docker-compose.yml` publishes the port on `127.0.0.1` only. It sets
+  `KROGER_MCP_ALLOW_UNAUTHENTICATED=true` because the server must listen on all
+  interfaces *inside* the container; the loopback-only publish is what keeps it
+  private.
+- `kroger_login` warns when an account is already linked, and the server logs
+  `kroger: linked account replaced` at info with both profile IDs when a link
+  swaps accounts.
+
+### Enabling auth
 
 ```sh
 export KROGER_MCP_OIDC_ISSUER=https://auth.example.com          # OIDC issuer (discovery base)
@@ -164,7 +187,8 @@ in the connector's **Advanced settings**.
 | `KROGER_REDIRECT_URI`      | `http://localhost:8080/kroger/callback` | Must match the Kroger app. Its path is the callback route. |
 | `KROGER_LOCATION_ID`       | (unset)                                 | Default store when none is saved or passed.               |
 | `KROGER_MODALITY`          | `PICKUP`                                | Default cart modality: `PICKUP` or `DELIVERY`.            |
-| `KROGER_MCP_ADDR`          | `:8080`                                 | Listen address.                                           |
+| `KROGER_MCP_ADDR`          | `127.0.0.1:8080` (`:8080` in the image) | Listen address. Without auth, non-loopback needs the opt-in below. |
+| `KROGER_MCP_ALLOW_UNAUTHENTICATED` | `false`                        | Allow listening beyond loopback with auth off. See [Running without auth](#running-without-auth). |
 | `KROGER_API_BASE_URL`      | `https://api.kroger.com/v1`             | Kroger API root. `https://api-ce.kroger.com/v1` is the certification environment (no shopper accounts, so no cart). |
 | `KROGER_MCP_DATA_DIR`      | `data` (`/data` in the image)           | Where `state.json` is kept.                               |
 | `KROGER_MCP_LOG_LEVEL`     | `info`                                  | `trace`/`debug`/`info`/`warn`/`error`. Request logs are at `trace`. |
@@ -179,7 +203,8 @@ in the connector's **Advanced settings**.
   version like `v0.1.0`, and run it. It creates the tag, pushes the image
   (`X.Y.Z`, `X.Y`, `latest`), publishes a GitHub release with binaries and
   git-cliff notes, and commits `CHANGELOG.md` to `main`. Pushing a `vX.Y.Z` tag
-  yourself does the same.
+  yourself does the same. `kroger-mcp -version` reports the tag it was built
+  from.
 - **Every merge to `main`** publishes `ghcr.io/philosowaffle/kroger-mcp:main`
   (plus `sha-<commit>`) for testing unreleased changes. No GitHub release is
   created.
@@ -189,8 +214,9 @@ in the connector's **Advanced settings**.
 ```sh
 task test              # go test ./...
 task test:integration  # live tests against the Kroger certification API (needs cert credentials)
-task lint    # golangci-lint
-task run     # go run . (loads .env)
+task lint              # golangci-lint (.golangci.yml)
+task ci                # everything PR Checks runs
+task run               # go run . (loads .env)
 ```
 
 See [`docs/architecture.md`](docs/architecture.md) for how it fits together and

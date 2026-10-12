@@ -11,7 +11,13 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
-RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -ldflags="-s -w" -o /out/kroger-mcp . \
+# Reported by -version and to MCP clients; the release workflow sets them.
+# Declared after the module download so changing them keeps that layer cached.
+ARG VERSION=dev
+ARG COMMIT=unknown
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build \
+      -ldflags="-s -w -X github.com/philosowaffle/kroger-cart/internal/server.Version=${VERSION} -X github.com/philosowaffle/kroger-cart/internal/server.Commit=${COMMIT}" \
+      -o /out/kroger-mcp . \
     && mkdir -p /out/data
 
 # ── Runtime stage ─────────────────────────────────────────────────────────────
