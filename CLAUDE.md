@@ -310,7 +310,8 @@ Set native GitHub `Blocks` / `Blocked by` relationships on issues to track depen
   certification API (`https://api-ce.kroger.com/v1`) with app-token calls only. Cert has no
   shopper accounts, so cart and identity stay out. When you add a read-only tool, add a case
   to `TestMCPTools` too. They run as the `integration` PR check using the
-  `KROGER_CERT_CLIENT_ID` / `KROGER_CERT_CLIENT_SECRET` secrets.
+  `KROGER_CERT_CLIENT_ID` / `KROGER_CERT_CLIENT_SECRET` secrets, only after the
+  `checks` job passes, to save Kroger API quota.
 - **Adding a tool:** add it under `tools/`, register it in `server.New()`, and add a case
   to `internal/server/server_test.go` (including the `TestListTools` list).
 - **First live run is still needed**: the ⚠️ items in `docs/api-research.md` are unvalidated.

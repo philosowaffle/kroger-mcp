@@ -16,7 +16,7 @@ const detailDoc = `"lite" (default): upc, brand, description, size, price, promo
 type SearchArgs struct {
 	Term        string   `json:"term,omitempty" jsonschema:"what to search for, e.g. \"2% milk\" or \"sourdough bread\". One of term, product_ids or brand is required"`
 	ProductIDs  []string `json:"product_ids,omitempty" jsonschema:"look up these product ids or UPCs in one call"`
-	Brand       string   `json:"brand,omitempty" jsonschema:"only return this brand, e.g. \"Simple Truth\""`
+	Brand       string   `json:"brand,omitempty" jsonschema:"only return this brand, e.g. \"Simple Truth\". On its own it searches for the brand's products"`
 	LocationID  string   `json:"location_id,omitempty" jsonschema:"store to search; defaults to the preferred store. Prices, stock and aisle are only returned when a store is set"`
 	Fulfillment string   `json:"fulfillment,omitempty" jsonschema:"only items available this way at the store: in_store, curbside, delivery or ship_to_home"`
 	Limit       int      `json:"limit,omitempty" jsonschema:"maximum results, 1-50 (default 10)"`

@@ -58,7 +58,8 @@ task test:integration
 
 Without credentials the tests skip.
 
-In CI, the `integration` job in `pr-checks.yml` runs them on every PR. It
+In CI, the `integration` job in `pr-checks.yml` runs them on every PR, once
+the `checks` job (format, vet, lint, build, unit tests, Docker build) has passed. It
 needs two repository secrets: `KROGER_CERT_CLIENT_ID` and
 `KROGER_CERT_CLIENT_SECRET`. A repository variable `KROGER_TEST_ZIP` overrides
 the default zip. If the secrets are missing (as on PRs from forks), the job

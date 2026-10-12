@@ -57,6 +57,14 @@ type Server struct {
 	queries      map[string][]url.Values
 	cartAdds     []CartAdd
 	lastVerifier string
+	failures     map[string]failure
+}
+
+// failure is a canned error response queued by FailNext.
+type failure struct {
+	n          int
+	status     int
+	retryAfter string
 }
 
 // New starts a fake Kroger API, closed when the test ends.
@@ -68,6 +76,7 @@ func New(t testing.TB) *Server {
 		appTokens:  map[string]bool{},
 		refresh:    map[string]bool{},
 		queries:    map[string][]url.Values{},
+		failures:   map[string]failure{},
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /connect/oauth2/token", s.token)
@@ -109,6 +118,15 @@ func (s *Server) Queries(path string) []url.Values {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return append([]url.Values(nil), s.queries[path]...)
+}
+
+// FailNext makes the next n requests to path fail with status, after they
+// are recorded. retryAfter, when non-empty, is sent as the Retry-After header.
+// Use it to simulate rate limiting (429) or an overloaded API (503).
+func (s *Server) FailNext(path string, n, status int, retryAfter string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.failures[path] = failure{n: n, status: status, retryAfter: retryAfter}
 }
 
 // CartAdds returns every recorded cart add, oldest first.
@@ -188,7 +206,20 @@ func (s *Server) guard(ok func(string) bool, h http.HandlerFunc) http.HandlerFun
 		s.mu.Lock()
 		allowed := ok(tok)
 		s.queries[r.URL.Path] = append(s.queries[r.URL.Path], r.URL.Query())
+		f := s.failures[r.URL.Path]
+		fail := f.n > 0
+		if fail {
+			f.n--
+			s.failures[r.URL.Path] = f
+		}
 		s.mu.Unlock()
+		if fail {
+			if f.retryAfter != "" {
+				w.Header().Set("Retry-After", f.retryAfter)
+			}
+			writeJSON(w, f.status, map[string]any{"errors": map[string]string{"reason": http.StatusText(f.status)}})
+			return
+		}
 		if !allowed {
 			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "invalid_token"})
 			return
@@ -260,6 +291,12 @@ func product(scoped bool) map[string]any {
 
 func (s *Server) products(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
+	if q.Get("filter.term") == "" && q.Get("filter.productId") == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"errors": map[string]string{
+			"reason": "Field 'term' or 'productId' must be used", "code": "PRODUCT-2016",
+		}})
+		return
+	}
 	if q.Get("filter.term") == "nothing" || (q.Has("filter.productId") && !strings.Contains(q.Get("filter.productId"), ProductID)) {
 		writeJSON(w, http.StatusOK, map[string]any{"data": []any{}})
 		return

@@ -55,7 +55,8 @@ var fulfillmentCodes = map[string]string{
 }
 
 // ProductQuery filters a product search. At least one of Term, ProductIDs or
-// Brand is required.
+// Brand is required. Kroger itself needs a term or product ids, so a
+// brand-only query searches for the brand name.
 type ProductQuery struct {
 	Term       string
 	ProductIDs []string
@@ -141,6 +142,12 @@ func (c *Client) SearchProducts(ctx context.Context, q ProductQuery) ([]ProductR
 	brand := strings.TrimSpace(q.Brand)
 	if term == "" && len(ids) == 0 && brand == "" {
 		return nil, errors.New("one of term, product_ids or brand is required")
+	}
+
+	// Kroger rejects a search without a term or product id (PRODUCT-2016);
+	// brand is only a filter on top of one.
+	if term == "" && len(ids) == 0 {
+		term = brand
 	}
 
 	params := url.Values{"filter.limit": {strconv.Itoa(clamp(q.Limit, 1, 50, 10))}}

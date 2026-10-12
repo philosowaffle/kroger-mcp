@@ -239,6 +239,11 @@ func TestMCPTools(t *testing.T) {
 			productID, _ = list[0].(map[string]any)["product_id"].(string)
 		}
 	})
+	t.Run("search_products brand alone", func(t *testing.T) {
+		// Kroger rejects a brand filter without a term (PRODUCT-2016); the
+		// tool searches for the brand name instead.
+		call(t, "search_products", map[string]any{"brand": "Kroger", "location_id": store.LocationID, "limit": 2})
+	})
 	t.Run("search_products full", func(t *testing.T) {
 		nonEmpty(t, call(t, "search_products", map[string]any{"term": "bread", "location_id": store.LocationID, "limit": 2, "detail": "full"}), "products")
 	})

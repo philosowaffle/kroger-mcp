@@ -53,6 +53,9 @@ jobs:
   integration:
     name: integration (Kroger certification API)
     runs-on: ubuntu-latest
+    # Only spend Kroger API quota once format, vet, lint, build and unit
+    # tests have passed.
+    needs: checks
     # One run at a time per PR, so pushes don't pile up calls to Kroger.
     concurrency:
       group: integration-${{ github.event.pull_request.number }}

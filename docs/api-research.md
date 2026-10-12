@@ -107,8 +107,23 @@ the `add_to_cart` tool tells Claude to confirm with the shopper before adding.
 
 **No order history.** Past orders are not accessible via the public API.
 
-**Rate limits.** The public Cart API allows 5,000 calls per day, which is far more than
-needed for weekly grocery runs.
+**Rate limits.** Quotas are per developer app, per day, and counted per endpoint
+call. ⚠️ Figures from community docs (May 2025); confirm on the developer portal:
+
+| API       | Calls per day         |
+| --------- | --------------------- |
+| Products  | 10,000                |
+| Locations | 1,600 (per endpoint)  |
+| Cart      | 5,000                 |
+| Identity  | 5,000                 |
+
+Cart is far more than a weekly grocery run needs; products is the one a large
+list with `detail=full` could exhaust. The product cache (5 minutes, per store)
+cuts repeat lookups. Over quota, Kroger answers 429. `Client.do` retries a GET
+once when `Retry-After` asks for 5 seconds or less (also on 503), never retries
+a cart add or token request, and otherwise returns an error that matches
+`ErrRateLimited` and tells Claude to try again later. ⚠️ Whether Kroger sends
+`Retry-After` on a 429 hasn't been seen on a live call.
 
 ## References
 

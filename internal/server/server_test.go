@@ -316,6 +316,19 @@ func TestSearchProductsFilters(t *testing.T) {
 	}
 }
 
+func TestSearchProducts_BrandAlone(t *testing.T) {
+	h := newHarness(t)
+	var res struct{ Products []kroger.Product }
+	h.mustCall(t, "search_products", map[string]any{"brand": "Kroger"}, &res)
+	if len(res.Products) != 1 {
+		t.Fatalf("products = %+v", res.Products)
+	}
+	qs := h.fake.Queries("/products")
+	if q := qs[len(qs)-1]; q.Get("filter.term") != "Kroger" || q.Get("filter.brand") != "Kroger" {
+		t.Errorf("query = %v", q)
+	}
+}
+
 func TestLocationTools(t *testing.T) {
 	h := newHarness(t)
 
@@ -367,5 +380,16 @@ func TestLocationTools(t *testing.T) {
 	}
 	if msg := h.call(t, "list_departments", map[string]any{"department_id": "99"}, nil); !strings.Contains(msg, "404") {
 		t.Errorf("unknown department: error = %q", msg)
+	}
+}
+
+func TestSearchProducts_QuotaExhaustedMessage(t *testing.T) {
+	h := newHarness(t)
+	h.fake.FailNext("/products", 1, 429, "")
+	msg := h.call(t, "search_products", map[string]any{"term": "milk"}, nil)
+	for _, want := range []string{"quota", "try again later", "right away"} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("error = %q, want mention of %q", msg, want)
+		}
 	}
 }
