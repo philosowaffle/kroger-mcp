@@ -712,6 +712,41 @@ func TestAuthorizeURL(t *testing.T) {
 	}
 }
 
+func TestAuthorizeURL_CapsPendingLogins(t *testing.T) {
+	c, _ := newTestClient(t)
+	now := time.Now()
+	c.now = func() time.Time { return now }
+
+	stateOf := func() string {
+		raw, err := c.AuthorizeURL()
+		if err != nil {
+			t.Fatal(err)
+		}
+		u, _ := url.Parse(raw)
+		return u.Query().Get("state")
+	}
+	states := make([]string, 0, maxPendingAuths+1)
+	for range maxPendingAuths + 1 {
+		states = append(states, stateOf())
+		now = now.Add(time.Second)
+	}
+
+	c.pendingMu.Lock()
+	n := len(c.pending)
+	c.pendingMu.Unlock()
+	if n != maxPendingAuths {
+		t.Fatalf("pending = %d, want %d", n, maxPendingAuths)
+	}
+
+	ctx := context.Background()
+	if err := c.CompleteAuthorization(ctx, states[0], "good-code"); !errors.Is(err, ErrUnknownState) {
+		t.Errorf("oldest state: err = %v, want ErrUnknownState (evicted)", err)
+	}
+	if err := c.CompleteAuthorization(ctx, states[len(states)-1], "good-code"); err != nil {
+		t.Errorf("newest state: err = %v", err)
+	}
+}
+
 func TestCompleteAuthorization(t *testing.T) {
 	ctx := context.Background()
 
@@ -955,6 +990,48 @@ func TestCallbackHandler(t *testing.T) {
 			t.Errorf("status = %d", rec.Code)
 		}
 	})
+	t.Run("security headers on every response", func(t *testing.T) {
+		// Its own client: the success case links an account, which the
+		// unknown-state case below must not see.
+		c2, _ := newTestClient(t)
+		h2 := c2.CallbackHandler()
+		call2 := func(method, query string) *httptest.ResponseRecorder {
+			rec := httptest.NewRecorder()
+			h2.ServeHTTP(rec, httptest.NewRequest(method, "/kroger/callback?"+query, nil))
+			return rec
+		}
+		raw, _ := c2.AuthorizeURL()
+		u, _ := url.Parse(raw)
+		for _, rec := range []*httptest.ResponseRecorder{
+			call2(http.MethodPost, ""),
+			call2(http.MethodGet, "error=access_denied"),
+			call2(http.MethodGet, "code=good-code&state=forged"),
+			call2(http.MethodGet, "code=good-code&state="+u.Query().Get("state")),
+		} {
+			for k, want := range map[string]string{
+				"Referrer-Policy":        "no-referrer",
+				"X-Content-Type-Options": "nosniff",
+				"X-Frame-Options":        "DENY",
+			} {
+				if got := rec.Header().Get(k); got != want {
+					t.Errorf("status %d: %s = %q, want %q", rec.Code, k, got, want)
+				}
+			}
+			if csp := rec.Header().Get("Content-Security-Policy"); !strings.Contains(csp, "default-src 'none'") || !strings.Contains(csp, "frame-ancestors 'none'") {
+				t.Errorf("status %d: Content-Security-Policy = %q", rec.Code, csp)
+			}
+		}
+	})
+	t.Run("long error is truncated", func(t *testing.T) {
+		long := strings.Repeat("x", 5000)
+		rec := call(http.MethodGet, "error="+long)
+		if rec.Code != http.StatusBadRequest {
+			t.Errorf("status = %d", rec.Code)
+		}
+		if strings.Contains(rec.Body.String(), long[:maxCallbackParam+1]) {
+			t.Error("error value rendered untruncated")
+		}
+	})
 	t.Run("user denied consumes state", func(t *testing.T) {
 		st := stateFor()
 		if rec := call(http.MethodGet, "error=access_denied&state="+st); rec.Code != http.StatusBadRequest {
@@ -990,6 +1067,24 @@ func TestCallbackHandler(t *testing.T) {
 			t.Error("not linked")
 		}
 	})
+}
+
+func TestTruncate(t *testing.T) {
+	tests := []struct {
+		in   string
+		n    int
+		want string
+	}{
+		{"", 3, ""},
+		{"abc", 3, "abc"},
+		{"abcd", 3, "abc…"},
+		{"héllo", 2, "hé…"},
+	}
+	for _, tt := range tests {
+		if got := truncate(tt.in, tt.n); got != tt.want {
+			t.Errorf("truncate(%q, %d) = %q, want %q", tt.in, tt.n, got, tt.want)
+		}
+	}
 }
 
 func TestLoadStateCorrupt(t *testing.T) {

@@ -15,8 +15,16 @@ import (
 	"time"
 )
 
-// pendingAuthTTL bounds how long a login URL from AuthorizeURL stays usable.
-const pendingAuthTTL = 15 * time.Minute
+const (
+	// pendingAuthTTL bounds how long a login URL from AuthorizeURL stays usable.
+	pendingAuthTTL = 15 * time.Minute
+	// maxPendingAuths caps outstanding login URLs. A shopper needs one; the
+	// cap stops a caller looping kroger_login from growing the map.
+	maxPendingAuths = 32
+	// maxCallbackParam bounds query values from the callback before they're
+	// logged or rendered.
+	maxCallbackParam = 200
+)
 
 // pendingAuth is an authorization request waiting for Kroger to redirect back.
 type pendingAuth struct {
@@ -48,6 +56,16 @@ func (c *Client) AuthorizeURL() (string, error) {
 		if now.After(p.expires) {
 			delete(c.pending, k)
 		}
+	}
+	if len(c.pending) >= maxPendingAuths {
+		// All live: drop the one closest to expiry, i.e. the oldest.
+		var oldest string
+		for k, p := range c.pending {
+			if oldest == "" || p.expires.Before(c.pending[oldest].expires) {
+				oldest = k
+			}
+		}
+		delete(c.pending, oldest)
 	}
 	c.pending[st] = pendingAuth{verifier: verifier, expires: now.Add(pendingAuthTTL)}
 	c.pendingMu.Unlock()
@@ -103,6 +121,14 @@ var callbackPage = template.Must(template.New("callback").Parse(`<!doctype html>
 // what ties the request back to a login URL issued by AuthorizeURL.
 func (c *Client) CallbackHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// The page loads nothing, must not be framed, and its URL carries the
+		// authorization code, so it must not leak through Referer.
+		h := w.Header()
+		h.Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
+		h.Set("Referrer-Policy", "no-referrer")
+		h.Set("X-Content-Type-Options", "nosniff")
+		h.Set("X-Frame-Options", "DENY")
+
 		if r.Method != http.MethodGet {
 			w.Header().Set("Allow", http.MethodGet)
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -117,12 +143,12 @@ func (c *Client) CallbackHandler() http.Handler {
 			_ = callbackPage.Execute(w, struct{ Title, Message string }{title, msg})
 		}
 
-		if e := q.Get("error"); e != "" {
+		if e := truncate(q.Get("error"), maxCallbackParam); e != "" {
 			// Consume the state so the URL can't be retried.
 			c.pendingMu.Lock()
 			delete(c.pending, q.Get("state"))
 			c.pendingMu.Unlock()
-			slog.Warn("kroger: authorization denied", "error", e, "description", q.Get("error_description"))
+			slog.Warn("kroger: authorization denied", "error", e, "description", truncate(q.Get("error_description"), maxCallbackParam))
 			render(http.StatusBadRequest, "Kroger account not linked", "Kroger returned: "+e+". Ask Claude for a new link to try again.")
 			return
 		}
@@ -139,6 +165,15 @@ func (c *Client) CallbackHandler() http.Handler {
 			render(http.StatusOK, "Kroger account linked", "You can close this tab and go back to Claude.")
 		}
 	})
+}
+
+// truncate shortens s to at most n runes, marking the cut with an ellipsis.
+func truncate(s string, n int) string {
+	r := []rune(s)
+	if len(r) <= n {
+		return s
+	}
+	return string(r[:n]) + "…"
 }
 
 // randomString returns n random bytes, base64url-encoded without padding.

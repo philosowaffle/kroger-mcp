@@ -24,6 +24,10 @@ import (
 	"github.com/philosowaffle/kroger-cart/internal/server"
 )
 
+// sessionTimeout closes MCP sessions idle for this long. Clients start a new
+// session when an old one is gone, so this only bounds abandoned ones.
+const sessionTimeout = time.Hour
+
 func listenAddr() string {
 	if addr := os.Getenv("KROGER_MCP_ADDR"); addr != "" {
 		return addr
@@ -69,10 +73,15 @@ func run(addr string) error {
 		return err
 	}
 
+	// No ReadTimeout or WriteTimeout: MCP responses can be long-lived SSE
+	// streams, and either deadline would cut them off. The SDK caps request
+	// bodies (4 MiB) itself.
 	httpServer := &http.Server{
 		Addr:              addr,
 		Handler:           requestLog(handler),
 		ReadHeaderTimeout: 10 * time.Second,
+		IdleTimeout:       2 * time.Minute,
+		MaxHeaderBytes:    64 << 10,
 	}
 
 	errCh := make(chan error, 1)
@@ -102,12 +111,13 @@ func run(addr string) error {
 //	                              404 otherwise (no auth, per RFC 9728)
 //	<KROGER_REDIRECT_URI path>    Kroger OAuth callback (no auth; guarded by
 //	                              single-use state from kroger_login)
-//	/                             MCP Streamable HTTP (bearer auth when on)
+//	/                             MCP Streamable HTTP (bearer auth when on;
+//	                              cross-origin browser requests rejected)
 func newHandler(ctx context.Context, kc *kroger.Client) (http.Handler, error) {
 	srv := server.New(kc)
 	var mcpHandler http.Handler = mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server {
 		return srv
-	}, nil)
+	}, &mcp.StreamableHTTPOptions{SessionTimeout: sessionTimeout})
 
 	mux := http.NewServeMux()
 	mux.HandleFunc(health.Path, health.Handler)
@@ -139,7 +149,11 @@ func newHandler(ctx context.Context, kc *kroger.Client) (http.Handler, error) {
 		slog.Warn("auth disabled: the MCP endpoint is open to anyone who can reach it; set KROGER_MCP_OIDC_ISSUER to require OAuth")
 	}
 
-	mux.Handle("/", mcpHandler)
+	// The SDK's DNS-rebinding check only covers loopback. This rejects
+	// cross-origin browser requests on any address, so a web page can't drive
+	// the tools from a shopper's browser. Clients that send neither Origin nor
+	// Sec-Fetch-Site (Claude Code, claude.ai's servers) are unaffected.
+	mux.Handle("/", http.NewCrossOriginProtection().Handler(mcpHandler))
 	return mux, nil
 }
 

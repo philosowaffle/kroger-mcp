@@ -112,7 +112,9 @@ Authelia) and only:
 1. serves protected-resource metadata at `/.well-known/oauth-protected-resource`,
 2. answers unauthenticated requests with `401` + `WWW-Authenticate`, and
 3. validates the bearer JWT access token (signature via the issuer's JWKS, plus
-   `iss` / `aud` / `exp`) on every request.
+   `iss` / `aud` / `exp`, and a `typ` header of `at+jwt` per RFC 9068) on every
+   request. The `typ` check stops an ID token for the same audience from being
+   used as an access token.
 
 ```sh
 export KROGER_MCP_OIDC_ISSUER=https://auth.example.com          # OIDC issuer (discovery base)
@@ -127,6 +129,9 @@ The issuer must be reachable at startup, because kroger-mcp runs OIDC discovery 
 - **JWT access tokens.** Configure the client with
   `access_token_signed_response_alg: RS256`. kroger-mcp validates JWTs, not
   Authelia's default opaque tokens.
+- **Token type.** Access tokens must carry the JOSE header `typ: at+jwt`. If
+  your authorization server omits it, set `KROGER_MCP_OIDC_REQUIRE_AT_JWT=false`
+  (the server logs `jwt typ "..." is not at+jwt` when it rejects one).
 - **Audience.** The access token's `aud` must contain the value of
   `KROGER_MCP_OIDC_RESOURCE` (drive this via RFC 8707 resource indicators or the
   client's audience config).
@@ -153,7 +158,8 @@ in the connector's **Advanced settings**.
 | `KROGER_MCP_LOG_LEVEL`     | `info`                                  | `trace`/`debug`/`info`/`warn`/`error`. Request logs are at `trace`. |
 | `KROGER_MCP_OIDC_ISSUER`   | (unset)                                 | OIDC issuer URL. Set to enable MCP auth.                  |
 | `KROGER_MCP_OIDC_RESOURCE` | (unset)                                 | Resource identifier / expected token audience.            |
-| `KROGER_MCP_OIDC_SCOPES`   | (unset)                                 | Space-separated scopes required on requests.              |
+| `KROGER_MCP_OIDC_SCOPES`   | (unset)                                 | Space-separated scopes required on requests. Read from the token's `scope` or `scp` claim. |
+| `KROGER_MCP_OIDC_REQUIRE_AT_JWT` | `true`                            | Reject tokens whose `typ` isn't `at+jwt`. Set `false` only if your IdP omits it. |
 
 ## Releasing
 

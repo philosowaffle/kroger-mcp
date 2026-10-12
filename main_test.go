@@ -51,9 +51,52 @@ func fakeIssuer(t *testing.T) string {
 
 func status(t *testing.T, h http.Handler, method, target string) (int, http.Header) {
 	t.Helper()
+	return statusWith(t, h, method, target, nil)
+}
+
+func statusWith(t *testing.T, h http.Handler, method, target string, header map[string]string) (int, http.Header) {
+	t.Helper()
 	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, httptest.NewRequest(method, target, strings.NewReader("{}")))
+	req := httptest.NewRequest(method, target, strings.NewReader("{}"))
+	for k, v := range header {
+		req.Header.Set(k, v)
+	}
+	h.ServeHTTP(rec, req)
 	return rec.Code, rec.Header()
+}
+
+// TestCrossOriginRejected covers browser requests from another site, which
+// must not reach the MCP endpoint whether or not auth is on.
+func TestCrossOriginRejected(t *testing.T) {
+	for _, authOn := range []bool{false, true} {
+		if authOn {
+			t.Setenv("KROGER_MCP_OIDC_ISSUER", fakeIssuer(t))
+			t.Setenv("KROGER_MCP_OIDC_RESOURCE", "https://kroger-mcp.example.com")
+		} else {
+			t.Setenv("KROGER_MCP_OIDC_ISSUER", "")
+		}
+		h, err := newHandler(context.Background(), newKrogerClient(t))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		tests := []struct {
+			name    string
+			header  map[string]string
+			blocked bool
+		}{
+			{"no browser headers", nil, false},
+			{"same-origin fetch", map[string]string{"Sec-Fetch-Site": "same-origin"}, false},
+			{"cross-site fetch", map[string]string{"Sec-Fetch-Site": "cross-site"}, true},
+			{"foreign Origin", map[string]string{"Origin": "https://evil.example.com"}, true},
+		}
+		for _, tt := range tests {
+			got, _ := statusWith(t, h, http.MethodPost, "/", tt.header)
+			if blocked := got == http.StatusForbidden; blocked != tt.blocked {
+				t.Errorf("auth=%v %s: status = %d, blocked = %v, want %v", authOn, tt.name, got, blocked, tt.blocked)
+			}
+		}
+	}
 }
 
 func TestRoutesWithAuth(t *testing.T) {
