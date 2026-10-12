@@ -56,6 +56,8 @@ type Client struct {
 
 	pendingMu sync.Mutex
 	pending   map[string]pendingAuth
+
+	products *productCache
 }
 
 // New validates cfg and loads any persisted state from cfg.DataDir.
@@ -73,13 +75,16 @@ func New(cfg Config) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Client{
+	c := &Client{
 		cfg:     cfg,
 		http:    &http.Client{Timeout: 30 * time.Second},
 		state:   st,
 		now:     time.Now,
 		pending: make(map[string]pendingAuth),
-	}, nil
+	}
+	// Read c.now on each call so tests can move the clock.
+	c.products = newProductCache(func() time.Time { return c.now() })
+	return c, nil
 }
 
 // Config returns the client's configuration.

@@ -23,9 +23,11 @@ const (
 
 // Fixture data returned by the fake.
 const (
-	LocationID = "62000044"
-	ProductID  = "0001111041700"
-	ProfileID  = "profile-123"
+	LocationID   = "62000044"
+	ProductID    = "0001111041700"
+	ProfileID    = "profile-123"
+	Chain        = "KINGSOOPERS"
+	DepartmentID = "09"
 )
 
 // CartAdd is one recorded PUT /cart/add call.
@@ -73,6 +75,10 @@ func New(t testing.TB) *Server {
 	mux.HandleFunc("GET /locations/{id}", s.app(s.location))
 	mux.HandleFunc("GET /products", s.app(s.products))
 	mux.HandleFunc("GET /products/{id}", s.app(s.product))
+	mux.HandleFunc("GET /chains", s.app(s.chains))
+	mux.HandleFunc("GET /chains/{name}", s.app(s.chain))
+	mux.HandleFunc("GET /departments", s.app(s.departments))
+	mux.HandleFunc("GET /departments/{id}", s.app(s.department))
 	mux.HandleFunc("PUT /cart/add", s.user(s.cartAdd))
 	mux.HandleFunc("GET /identity/profile", s.user(s.profile))
 	s.Server = httptest.NewServer(mux)
@@ -192,16 +198,24 @@ func (s *Server) guard(ok func(string) bool, h http.HandlerFunc) http.HandlerFun
 }
 
 var location = map[string]any{
-	"locationId": LocationID,
-	"chain":      "KINGSOOPERS",
-	"name":       "King Soopers - Speer",
-	"phone":      "3035550100",
+	"locationId":     LocationID,
+	"storeNumber":    "00044",
+	"divisionNumber": "620",
+	"chain":          Chain,
+	"name":           "King Soopers - Speer",
+	"phone":          "3035550100",
 	"address": map[string]any{
 		"addressLine1": "900 E 11th Ave",
 		"city":         "Denver",
 		"state":        "CO",
 		"zipCode":      "80218",
 	},
+	"geolocation": map[string]any{"latitude": 39.7334, "longitude": -104.9767},
+	"hours": map[string]any{
+		"timezone": "America/Denver",
+		"monday":   map[string]any{"open": "06:00", "close": "22:00", "open24": false},
+	},
+	"departments": []any{map[string]any{"departmentId": DepartmentID, "name": "Pharmacy"}},
 }
 
 func (s *Server) locations(w http.ResponseWriter, _ *http.Request) {
@@ -231,6 +245,12 @@ func product(scoped bool) map[string]any {
 		"description": "Kroger® 2% Reduced Fat Milk",
 		"categories":  []string{"Dairy"},
 		"items":       []any{item},
+		"images": []any{map[string]any{
+			"perspective": "front",
+			"featured":    true,
+			"sizes":       []any{map[string]any{"size": "medium", "url": "https://example.com/milk.jpg"}},
+		}},
+		"temperature": map[string]any{"indicator": "Refrigerated", "heatSensitive": false},
 	}
 	if scoped {
 		p["aisleLocations"] = []any{map[string]any{"description": "Dairy", "number": "30"}}
@@ -239,7 +259,8 @@ func product(scoped bool) map[string]any {
 }
 
 func (s *Server) products(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Query().Get("filter.term") == "nothing" {
+	q := r.URL.Query()
+	if q.Get("filter.term") == "nothing" || (q.Has("filter.productId") && !strings.Contains(q.Get("filter.productId"), ProductID)) {
 		writeJSON(w, http.StatusOK, map[string]any{"data": []any{}})
 		return
 	}
@@ -254,6 +275,36 @@ func (s *Server) product(w http.ResponseWriter, r *http.Request) {
 	}
 	scoped := r.URL.Query().Get("filter.locationId") != ""
 	writeJSON(w, http.StatusOK, map[string]any{"data": product(scoped)})
+}
+
+func (s *Server) chains(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]any{"data": []any{
+		map[string]any{"name": Chain, "divisionNumbers": []string{"620"}},
+		map[string]any{"name": "RALPHS", "divisionNumbers": []string{"703"}},
+	}})
+}
+
+func (s *Server) chain(w http.ResponseWriter, r *http.Request) {
+	if r.PathValue("name") != Chain {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"data": map[string]any{"name": Chain, "divisionNumbers": []string{"620"}}})
+}
+
+func (s *Server) departments(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]any{"data": []any{
+		map[string]any{"departmentId": DepartmentID, "name": "Pharmacy"},
+		map[string]any{"departmentId": "01", "name": "Bakery"},
+	}})
+}
+
+func (s *Server) department(w http.ResponseWriter, r *http.Request) {
+	if r.PathValue("id") != DepartmentID {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"data": map[string]any{"departmentId": DepartmentID, "name": "Pharmacy"}})
 }
 
 func (s *Server) cartAdd(w http.ResponseWriter, r *http.Request) {

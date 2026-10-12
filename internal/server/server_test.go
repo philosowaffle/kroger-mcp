@@ -109,7 +109,7 @@ func TestListTools(t *testing.T) {
 		}
 	}
 	sort.Strings(names)
-	want := []string{"add_to_cart", "get_product", "kroger_auth_status", "kroger_login", "search_locations", "search_products", "set_preferred_location"}
+	want := []string{"add_to_cart", "get_location", "get_product", "kroger_auth_status", "kroger_login", "list_chains", "list_departments", "search_locations", "search_products", "set_preferred_location"}
 	if strings.Join(names, ",") != strings.Join(want, ",") {
 		t.Errorf("tools = %v, want %v", names, want)
 	}
@@ -254,5 +254,118 @@ func TestExpiredLinkReportedByStatus(t *testing.T) {
 	h.mustCall(t, "kroger_auth_status", nil, &status)
 	if status.Linked || !strings.Contains(status.Message, "expired") {
 		t.Errorf("status = %+v", status)
+	}
+}
+
+func TestProductDetailLevels(t *testing.T) {
+	h := newHarness(t)
+
+	var lite struct {
+		Detail   string
+		Products []map[string]any
+	}
+	h.mustCall(t, "search_products", map[string]any{"term": "milk", "location_id": krogertest.LocationID}, &lite)
+	if lite.Detail != "lite" || lite.Products[0]["upc"] != krogertest.ProductID {
+		t.Fatalf("lite search = %+v", lite)
+	}
+	if _, ok := lite.Products[0]["images"]; ok {
+		t.Error("lite result includes images")
+	}
+
+	var full struct {
+		Detail   string
+		Products []map[string]any
+	}
+	h.mustCall(t, "search_products", map[string]any{"term": "milk", "detail": "full"}, &full)
+	if full.Detail != "full" || full.Products[0]["images"] == nil || full.Products[0]["productId"] != krogertest.ProductID {
+		t.Fatalf("full search = %+v", full)
+	}
+
+	// Full details for something just searched come from the cache.
+	var got struct {
+		Detail  string
+		Product map[string]any
+	}
+	h.mustCall(t, "get_product", map[string]any{"product_id": krogertest.ProductID, "location_id": krogertest.LocationID, "detail": "full"}, &got)
+	if got.Detail != "full" || got.Product["temperature"] == nil {
+		t.Errorf("get_product full = %+v", got)
+	}
+	if n := len(h.fake.Queries("/products/" + krogertest.ProductID)); n != 0 {
+		t.Errorf("get_product hit the API %d times; want cache hit", n)
+	}
+
+	if msg := h.call(t, "search_products", map[string]any{"term": "milk", "detail": "everything"}, nil); !strings.Contains(msg, "detail") {
+		t.Errorf("bad detail: error = %q", msg)
+	}
+}
+
+func TestSearchProductsFilters(t *testing.T) {
+	h := newHarness(t)
+	var res struct{ Products []kroger.Product }
+	h.mustCall(t, "search_products", map[string]any{"product_ids": []string{krogertest.ProductID}, "fulfillment": "curbside"}, &res)
+	if len(res.Products) != 1 {
+		t.Fatalf("products = %+v", res.Products)
+	}
+	qs := h.fake.Queries("/products")
+	q := qs[len(qs)-1]
+	if q.Get("filter.productId") != krogertest.ProductID || q.Get("filter.fulfillment") != "csp" {
+		t.Errorf("query = %v", q)
+	}
+	if msg := h.call(t, "search_products", map[string]any{}, nil); !strings.Contains(msg, "one of term") {
+		t.Errorf("empty search: error = %q", msg)
+	}
+}
+
+func TestLocationTools(t *testing.T) {
+	h := newHarness(t)
+
+	var near struct{ Locations []kroger.Location }
+	h.mustCall(t, "search_locations", map[string]any{"latitude": 39.73, "longitude": -104.97, "department_ids": []string{krogertest.DepartmentID}}, &near)
+	if len(near.Locations) != 1 {
+		t.Fatalf("locations = %+v", near.Locations)
+	}
+	qs := h.fake.Queries("/locations")
+	if q := qs[len(qs)-1]; q.Get("filter.latLong.near") != "39.73,-104.97" || q.Get("filter.department") != krogertest.DepartmentID {
+		t.Errorf("query = %v", q)
+	}
+
+	var lite struct {
+		Detail   string
+		Location map[string]any
+	}
+	h.mustCall(t, "get_location", map[string]any{"location_id": krogertest.LocationID}, &lite)
+	if lite.Detail != "lite" || lite.Location["name"] != "King Soopers - Speer" || lite.Location["hours"] != nil {
+		t.Errorf("lite location = %+v", lite)
+	}
+	var full struct {
+		Detail   string
+		Location map[string]any
+	}
+	h.mustCall(t, "get_location", map[string]any{"location_id": krogertest.LocationID, "detail": "full"}, &full)
+	if full.Detail != "full" || full.Location["hours"] == nil || full.Location["departments"] == nil {
+		t.Errorf("full location = %+v", full)
+	}
+
+	var chains struct{ Chains []kroger.Chain }
+	h.mustCall(t, "list_chains", nil, &chains)
+	if len(chains.Chains) != 2 {
+		t.Errorf("chains = %+v", chains.Chains)
+	}
+	h.mustCall(t, "list_chains", map[string]any{"name": krogertest.Chain}, &chains)
+	if len(chains.Chains) != 1 || chains.Chains[0].Name != krogertest.Chain {
+		t.Errorf("one chain = %+v", chains.Chains)
+	}
+
+	var deps struct{ Departments []kroger.Department }
+	h.mustCall(t, "list_departments", nil, &deps)
+	if len(deps.Departments) != 2 {
+		t.Errorf("departments = %+v", deps.Departments)
+	}
+	h.mustCall(t, "list_departments", map[string]any{"department_id": krogertest.DepartmentID}, &deps)
+	if len(deps.Departments) != 1 || deps.Departments[0].Name != "Pharmacy" {
+		t.Errorf("one department = %+v", deps.Departments)
+	}
+	if msg := h.call(t, "list_departments", map[string]any{"department_id": "99"}, nil); !strings.Contains(msg, "404") {
+		t.Errorf("unknown department: error = %q", msg)
 	}
 }

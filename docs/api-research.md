@@ -36,14 +36,21 @@ Auth endpoint:  `https://api.kroger.com/v1/connect/oauth2/authorize`
 Backs the `search_locations` tool. A store's `locationId` scopes product searches
 to that store's catalog, prices and stock.
 
+Other location endpoints used:
+- `GET /v1/locations/{locationId}` backs `get_location`, and `set_preferred_location`
+  uses it to check the id before saving it.
+- `GET /v1/chains` and `/v1/chains/{name}` back `list_chains`.
+- `GET /v1/departments` and `/v1/departments/{departmentId}` back `list_departments`.
+
 Parameters used:
 - `filter.zipCode.near` — zip code to search near
-- `filter.chain` — ⚠️ set to `"King Soopers"` to filter to that chain; **parameter name
-  unconfirmed** — if location lookup returns empty results, try removing this filter
+- `filter.latLong.near` — `lat,long`, used instead of a zip code when given
+- `filter.locationId` — comma-separated store ids
+- `filter.radiusInMiles` — 1–100
+- `filter.chain` — a chain name from `/chains` (⚠️ exact matching still to confirm live)
+- `filter.department` — comma-separated department ids from `/departments`
 - `filter.limit` — number of results to return
 
-`GET /v1/locations/{locationId}` looks up one store; `set_preferred_location` uses it
-to validate the id before saving it.
 
 ### Products API
 `GET /v1/products`
@@ -53,7 +60,9 @@ Backs `search_products` (and `GET /v1/products/{id}` backs `get_product`).
 Parameters used:
 - `filter.term` — the search text
 - `filter.locationId` — the store's location ID (ensures results are store-specific)
+- `filter.productId` — comma-separated product ids or UPCs
 - `filter.brand` — optional brand filter
+- `filter.fulfillment` — `ais` (in store), `csp` (curbside), `dth` (delivery), `sth` (ship to home)
 - `filter.limit` — 1–50
 - `filter.start` — offset for paging
 
@@ -63,6 +72,9 @@ Notes:
   `fulfillment` flags and ⚠️ `inventory.stockLevel` (HIGH / LOW /
   TEMPORARILY_OUT_OF_STOCK). Whether stock level comes back on the public tier
   still needs confirming on a live call.
+- `detail: "full"` passes Kroger's record through untouched. ⚠️ Which extra
+  fields (nutrition in particular) the public tier returns hasn't been
+  confirmed; whatever Kroger sends is what Claude gets.
 
 ### Cart API
 `PUT /v1/cart/add`

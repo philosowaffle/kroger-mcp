@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -196,40 +197,144 @@ func TestBadCredentials(t *testing.T) {
 	}
 }
 
-func TestSearchLocations(t *testing.T) {
-	c, fake := newTestClient(t)
-	ctx := context.Background()
-
-	if _, err := c.SearchLocations(ctx, LocationQuery{}); err == nil {
-		t.Fatal("want error for missing zip")
+func liteLocations(recs []LocationRecord) []Location {
+	out := make([]Location, len(recs))
+	for i, r := range recs {
+		out[i] = r.Lite
 	}
+	return out
+}
 
-	got, err := c.SearchLocations(ctx, LocationQuery{ZipCode: "80218", RadiusMiles: 5, Chain: "KINGSOOPERS", Limit: 3})
-	if err != nil {
-		t.Fatal(err)
+func liteProducts(recs []ProductRecord) []Product {
+	out := make([]Product, len(recs))
+	for i, r := range recs {
+		out[i] = r.Lite
 	}
-	want := []Location{{
-		LocationID: krogertest.LocationID,
-		Chain:      "KINGSOOPERS",
-		Name:       "King Soopers - Speer",
-		Address:    "900 E 11th Ave, Denver, CO 80218",
-		Phone:      "3035550100",
-	}}
-	if !reflect.DeepEqual(got, want) {
-		t.Errorf("got %+v, want %+v", got, want)
-	}
+	return out
+}
 
-	q := fake.Queries("/locations")[0]
-	for k, v := range map[string]string{
-		"filter.zipCode.near":  "80218",
-		"filter.radiusInMiles": "5",
-		"filter.chain":         "KINGSOOPERS",
-		"filter.limit":         "3",
-	} {
+func lastQuery(t *testing.T, fake *krogertest.Server, path string) url.Values {
+	t.Helper()
+	qs := fake.Queries(path)
+	if len(qs) == 0 {
+		t.Fatalf("no requests to %s", path)
+	}
+	return qs[len(qs)-1]
+}
+
+func assertQuery(t *testing.T, q url.Values, want map[string]string) {
+	t.Helper()
+	for k, v := range want {
+		if v == "" {
+			if q.Has(k) {
+				t.Errorf("query %s = %q, want absent", k, q.Get(k))
+			}
+			continue
+		}
 		if q.Get(k) != v {
 			t.Errorf("query %s = %q, want %q", k, q.Get(k), v)
 		}
 	}
+}
+
+func ptr(f float64) *float64 { return &f }
+
+func TestSearchLocations(t *testing.T) {
+	c, fake := newTestClient(t)
+	ctx := context.Background()
+
+	t.Run("validation", func(t *testing.T) {
+		tests := []struct {
+			name string
+			q    LocationQuery
+			want string
+		}{
+			{"nothing to search by", LocationQuery{}, "one of zip_code"},
+			{"latitude alone", LocationQuery{Latitude: ptr(39.7)}, "together"},
+			{"longitude alone", LocationQuery{Longitude: ptr(-104.9)}, "together"},
+			{"latitude out of range", LocationQuery{Latitude: ptr(91), Longitude: ptr(0)}, "within"},
+			{"longitude out of range", LocationQuery{Latitude: ptr(0), Longitude: ptr(-181)}, "within"},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				_, err := c.SearchLocations(ctx, tt.q)
+				if err == nil || !strings.Contains(err.Error(), tt.want) {
+					t.Fatalf("err = %v, want mention of %q", err, tt.want)
+				}
+			})
+		}
+		if n := len(fake.Queries("/locations")); n != 0 {
+			t.Errorf("invalid queries reached the API %d times", n)
+		}
+	})
+
+	t.Run("by zip", func(t *testing.T) {
+		got, err := c.SearchLocations(ctx, LocationQuery{ZipCode: "80218", RadiusMiles: 5, Chain: "KINGSOOPERS", Limit: 3})
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := []Location{{
+			LocationID: krogertest.LocationID,
+			Chain:      "KINGSOOPERS",
+			Name:       "King Soopers - Speer",
+			Address:    "900 E 11th Ave, Denver, CO 80218",
+			Phone:      "3035550100",
+		}}
+		if !reflect.DeepEqual(liteLocations(got), want) {
+			t.Errorf("got %+v, want %+v", liteLocations(got), want)
+		}
+		assertQuery(t, lastQuery(t, fake, "/locations"), map[string]string{
+			"filter.zipCode.near":  "80218",
+			"filter.radiusInMiles": "5",
+			"filter.chain":         "KINGSOOPERS",
+			"filter.limit":         "3",
+			"filter.latLong.near":  "",
+			"filter.department":    "",
+			"filter.locationId":    "",
+		})
+	})
+
+	t.Run("coordinates win over zip", func(t *testing.T) {
+		if _, err := c.SearchLocations(ctx, LocationQuery{ZipCode: "80218", Latitude: ptr(39.7334), Longitude: ptr(-104.9767), RadiusMiles: 500}); err != nil {
+			t.Fatal(err)
+		}
+		assertQuery(t, lastQuery(t, fake, "/locations"), map[string]string{
+			"filter.latLong.near":  "39.7334,-104.9767",
+			"filter.zipCode.near":  "",
+			"filter.radiusInMiles": "100",
+		})
+	})
+
+	t.Run("departments and ids", func(t *testing.T) {
+		if _, err := c.SearchLocations(ctx, LocationQuery{ZipCode: "80218", DepartmentIDs: []string{"09", " ", "01"}}); err != nil {
+			t.Fatal(err)
+		}
+		assertQuery(t, lastQuery(t, fake, "/locations"), map[string]string{"filter.department": "09,01"})
+
+		if _, err := c.SearchLocations(ctx, LocationQuery{LocationIDs: []string{krogertest.LocationID, "62000045"}}); err != nil {
+			t.Fatal(err)
+		}
+		assertQuery(t, lastQuery(t, fake, "/locations"), map[string]string{
+			"filter.locationId":   krogertest.LocationID + ",62000045",
+			"filter.zipCode.near": "",
+		})
+	})
+
+	t.Run("full record", func(t *testing.T) {
+		got, err := c.SearchLocations(ctx, LocationQuery{ZipCode: "80218"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		full, err := got[0].Full()
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, k := range []string{"hours", "departments", "geolocation", "storeNumber"} {
+			if _, ok := full[k]; !ok {
+				t.Errorf("full record missing %q: %v", k, full)
+			}
+		}
+	})
 }
 
 func TestLocationAddressSkipsBlanks(t *testing.T) {
@@ -249,8 +354,11 @@ func TestGetLocation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if loc.Name != "King Soopers - Speer" {
-		t.Errorf("name = %q", loc.Name)
+	if loc.Lite.Name != "King Soopers - Speer" {
+		t.Errorf("name = %q", loc.Lite.Name)
+	}
+	if full, err := loc.Full(); err != nil || full["hours"] == nil {
+		t.Errorf("full = %v, err = %v", full, err)
 	}
 
 	_, err = c.GetLocation(ctx, "nope")
@@ -258,14 +366,72 @@ func TestGetLocation(t *testing.T) {
 	if !errors.As(err, &apiErr) || apiErr.Status != http.StatusNotFound {
 		t.Fatalf("err = %v, want APIError 404", err)
 	}
+	if _, err := c.GetLocation(ctx, " "); err == nil {
+		t.Error("want error for empty id")
+	}
+}
+
+func TestChains(t *testing.T) {
+	c, _ := newTestClient(t)
+	ctx := context.Background()
+
+	chains, err := c.ListChains(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []Chain{
+		{Name: krogertest.Chain, DivisionNumbers: []string{"620"}},
+		{Name: "RALPHS", DivisionNumbers: []string{"703"}},
+	}
+	if !reflect.DeepEqual(chains, want) {
+		t.Errorf("chains = %+v, want %+v", chains, want)
+	}
+
+	ch, err := c.GetChain(ctx, krogertest.Chain)
+	if err != nil || ch.Name != krogertest.Chain {
+		t.Errorf("GetChain = %+v, %v", ch, err)
+	}
+	var apiErr *APIError
+	if _, err := c.GetChain(ctx, "NOPE"); !errors.As(err, &apiErr) || apiErr.Status != http.StatusNotFound {
+		t.Errorf("unknown chain err = %v", err)
+	}
+	if _, err := c.GetChain(ctx, ""); err == nil {
+		t.Error("want error for empty name")
+	}
+}
+
+func TestDepartments(t *testing.T) {
+	c, _ := newTestClient(t)
+	ctx := context.Background()
+
+	deps, err := c.ListDepartments(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []Department{{DepartmentID: krogertest.DepartmentID, Name: "Pharmacy"}, {DepartmentID: "01", Name: "Bakery"}}
+	if !reflect.DeepEqual(deps, want) {
+		t.Errorf("departments = %+v", deps)
+	}
+
+	d, err := c.GetDepartment(ctx, krogertest.DepartmentID)
+	if err != nil || *d != want[0] {
+		t.Errorf("GetDepartment = %+v, %v", d, err)
+	}
+	var apiErr *APIError
+	if _, err := c.GetDepartment(ctx, "99"); !errors.As(err, &apiErr) || apiErr.Status != http.StatusNotFound {
+		t.Errorf("unknown department err = %v", err)
+	}
+	if _, err := c.GetDepartment(ctx, ""); err == nil {
+		t.Error("want error for empty id")
+	}
 }
 
 func TestSearchProducts(t *testing.T) {
 	c, fake := newTestClient(t)
 	ctx := context.Background()
 
-	if _, err := c.SearchProducts(ctx, ProductQuery{Term: "  "}); err == nil {
-		t.Fatal("want error for blank term")
+	if _, err := c.SearchProducts(ctx, ProductQuery{Term: "  "}); err == nil || !strings.Contains(err.Error(), "one of term") {
+		t.Fatalf("blank query err = %v", err)
 	}
 
 	t.Run("store scoped", func(t *testing.T) {
@@ -286,20 +452,32 @@ func TestSearchProducts(t *testing.T) {
 			Aisle:        "Dairy",
 			Fulfillment:  []string{"curbside", "delivery", "inStore"},
 		}}
-		if !reflect.DeepEqual(got, want) {
-			t.Errorf("got %+v\nwant %+v", got, want)
+		if !reflect.DeepEqual(liteProducts(got), want) {
+			t.Errorf("got %+v\nwant %+v", liteProducts(got), want)
 		}
-		qs := fake.Queries("/products")
-		q := qs[len(qs)-1]
-		for k, v := range map[string]string{
-			"filter.term":       "milk",
-			"filter.locationId": krogertest.LocationID,
-			"filter.brand":      "Kroger",
-			"filter.limit":      "50",
-			"filter.start":      "10",
-		} {
-			if q.Get(k) != v {
-				t.Errorf("query %s = %q, want %q", k, q.Get(k), v)
+		assertQuery(t, lastQuery(t, fake, "/products"), map[string]string{
+			"filter.term":        "milk",
+			"filter.locationId":  krogertest.LocationID,
+			"filter.brand":       "Kroger",
+			"filter.limit":       "50",
+			"filter.start":       "10",
+			"filter.productId":   "",
+			"filter.fulfillment": "",
+		})
+	})
+
+	t.Run("full record has extras", func(t *testing.T) {
+		got, err := c.SearchProducts(ctx, ProductQuery{Term: "milk"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		full, err := got[0].Full()
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, k := range []string{"images", "temperature", "items"} {
+			if _, ok := full[k]; !ok {
+				t.Errorf("full record missing %q", k)
 			}
 		}
 	})
@@ -309,13 +487,42 @@ func TestSearchProducts(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		p := got[0]
+		p := got[0].Lite
 		if p.RegularPrice != 0 || p.StockLevel != "" || p.Aisle != "" || p.Fulfillment != nil {
 			t.Errorf("unexpected store data: %+v", p)
 		}
-		qs := fake.Queries("/products")
-		if q := qs[len(qs)-1]; q.Has("filter.locationId") {
-			t.Error("filter.locationId should be absent")
+		assertQuery(t, lastQuery(t, fake, "/products"), map[string]string{"filter.locationId": ""})
+	})
+
+	t.Run("by product ids and brand alone", func(t *testing.T) {
+		got, err := c.SearchProducts(ctx, ProductQuery{ProductIDs: []string{krogertest.ProductID, " ", "0000000000001"}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(got) != 1 {
+			t.Errorf("got %d products", len(got))
+		}
+		assertQuery(t, lastQuery(t, fake, "/products"), map[string]string{
+			"filter.productId": krogertest.ProductID + ",0000000000001",
+			"filter.term":      "",
+		})
+		if _, err := c.SearchProducts(ctx, ProductQuery{Brand: "Kroger"}); err != nil {
+			t.Errorf("brand-only search: %v", err)
+		}
+	})
+
+	t.Run("fulfillment", func(t *testing.T) {
+		for in, code := range map[string]string{
+			"in_store": "ais", "curbside": "csp", "pickup": "csp", "Delivery": "dth",
+			"ship_to_home": "sth", "sth": "sth",
+		} {
+			if _, err := c.SearchProducts(ctx, ProductQuery{Term: "milk", Fulfillment: in}); err != nil {
+				t.Fatalf("%s: %v", in, err)
+			}
+			assertQuery(t, lastQuery(t, fake, "/products"), map[string]string{"filter.fulfillment": code})
+		}
+		if _, err := c.SearchProducts(ctx, ProductQuery{Term: "milk", Fulfillment: "drone"}); err == nil || !strings.Contains(err.Error(), "fulfillment") {
+			t.Errorf("bad fulfillment err = %v", err)
 		}
 	})
 
@@ -348,8 +555,8 @@ func TestGetProduct(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if p.RegularPrice != 4.29 {
-		t.Errorf("price = %v", p.RegularPrice)
+	if p.Lite.RegularPrice != 4.29 {
+		t.Errorf("price = %v", p.Lite.RegularPrice)
 	}
 	if got := fake.Queries("/products/" + krogertest.ProductID)[0].Get("filter.locationId"); got != krogertest.LocationID {
 		t.Errorf("filter.locationId = %q", got)
@@ -357,6 +564,115 @@ func TestGetProduct(t *testing.T) {
 
 	if _, err := c.GetProduct(ctx, "", ""); err == nil {
 		t.Error("want error for empty id")
+	}
+	var apiErr *APIError
+	if _, err := c.GetProduct(ctx, "0000000000001", ""); !errors.As(err, &apiErr) || apiErr.Status != http.StatusNotFound {
+		t.Errorf("unknown product err = %v", err)
+	}
+}
+
+func TestGetProductCache(t *testing.T) {
+	c, fake := newTestClient(t)
+	now := time.Now()
+	c.now = func() time.Time { return now }
+	ctx := context.Background()
+	detailCalls := func() int { return len(fake.Queries("/products/" + krogertest.ProductID)) }
+
+	// A search fills the cache for the store it was scoped to.
+	if _, err := c.SearchProducts(ctx, ProductQuery{Term: "milk", LocationID: krogertest.LocationID}); err != nil {
+		t.Fatal(err)
+	}
+	rec, err := c.GetProduct(ctx, krogertest.ProductID, krogertest.LocationID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n := detailCalls(); n != 0 {
+		t.Fatalf("detail calls = %d, want 0 (served from search cache)", n)
+	}
+	if full, _ := rec.Full(); full["images"] == nil {
+		t.Error("cached record lost full data")
+	}
+
+	// A different store is a different entry: prices differ per store.
+	if _, err := c.GetProduct(ctx, krogertest.ProductID, ""); err != nil {
+		t.Fatal(err)
+	}
+	if n := detailCalls(); n != 1 {
+		t.Fatalf("detail calls = %d, want 1 for a new store", n)
+	}
+	if _, err := c.GetProduct(ctx, krogertest.ProductID, ""); err != nil {
+		t.Fatal(err)
+	}
+	if n := detailCalls(); n != 1 {
+		t.Fatalf("detail calls = %d, want 1 (second lookup cached)", n)
+	}
+
+	// Entries expire after the TTL.
+	now = now.Add(productCacheTTL)
+	if _, err := c.GetProduct(ctx, krogertest.ProductID, krogertest.LocationID); err != nil {
+		t.Fatal(err)
+	}
+	if n := detailCalls(); n != 2 {
+		t.Fatalf("detail calls = %d, want 2 after expiry", n)
+	}
+}
+
+func TestProductCacheEviction(t *testing.T) {
+	now := time.Now()
+	pc := newProductCache(func() time.Time { return now })
+	raw := json.RawMessage(`{}`)
+
+	pc.put("old", "", raw)
+	now = now.Add(time.Second)
+	for i := range productCacheMax - 1 {
+		pc.put(fmt.Sprintf("p%d", i), "", raw)
+	}
+	if len(pc.entries) != productCacheMax {
+		t.Fatalf("entries = %d, want %d", len(pc.entries), productCacheMax)
+	}
+
+	// Full cache: adding one more evicts the oldest.
+	pc.put("new", "", raw)
+	if len(pc.entries) != productCacheMax {
+		t.Fatalf("entries = %d after eviction, want %d", len(pc.entries), productCacheMax)
+	}
+	if _, ok := pc.get("old", ""); ok {
+		t.Error("oldest entry survived eviction")
+	}
+	if _, ok := pc.get("new", ""); !ok {
+		t.Error("new entry missing")
+	}
+
+	// Expired entries go first, all at once.
+	now = now.Add(productCacheTTL)
+	pc.put("fresh", "", raw)
+	if len(pc.entries) != 1 {
+		t.Errorf("entries = %d, want only the fresh one after expired sweep", len(pc.entries))
+	}
+
+	// Empty ids are never cached.
+	pc.put("", "", raw)
+	if _, ok := pc.get("", ""); ok {
+		t.Error("cached an empty product id")
+	}
+}
+
+func TestWantFull(t *testing.T) {
+	tests := []struct {
+		in      string
+		want    bool
+		wantErr bool
+	}{
+		{"", false, false},
+		{"lite", false, false},
+		{" FULL ", true, false},
+		{"everything", false, true},
+	}
+	for _, tt := range tests {
+		got, err := WantFull(tt.in)
+		if got != tt.want || (err != nil) != tt.wantErr {
+			t.Errorf("WantFull(%q) = %v, %v", tt.in, got, err)
+		}
 	}
 }
 
