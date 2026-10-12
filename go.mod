@@ -1,6 +1,6 @@
 module github.com/philosowaffle/kroger-cart
 
-go 1.26.8
+go 1.26.0
 
 require (
 	github.com/coreos/go-oidc/v3 v3.21.0

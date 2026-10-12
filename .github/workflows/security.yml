@@ -23,7 +23,10 @@ jobs:
 
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
-          go-version-file: go.mod
+          # Newest 1.26 patch, so builds and govulncheck get stdlib security
+          # fixes. go.mod's `go` line is only the minimum language version.
+          go-version: "1.26.x"
+          check-latest: true
 
       # Fails only on vulnerabilities in code the module actually calls.
       - name: govulncheck
@@ -43,7 +46,10 @@ jobs:
 
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
-          go-version-file: go.mod
+          # Newest 1.26 patch, so builds and govulncheck get stdlib security
+          # fixes. go.mod's `go` line is only the minimum language version.
+          go-version: "1.26.x"
+          check-latest: true
 
       - uses: github/codeql-action/init@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
         with:

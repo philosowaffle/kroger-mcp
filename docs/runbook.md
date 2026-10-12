@@ -114,6 +114,9 @@ that job.
   `# vX.Y.Z` comment. Dependabot (`.github/dependabot.yml`) opens weekly grouped
   PRs for actions, Go modules and Docker base images, and updates the SHA and
   the comment together. Don't hand-edit a pin back to a tag.
+- Workflows install the newest Go 1.26 patch (`go-version: "1.26.x"`,
+  `check-latest: true`) rather than the `go` line in `go.mod`, which is only the
+  minimum. That way CI, govulncheck and release binaries pick up stdlib security fixes.
 - golangci-lint is pinned in `pr-checks.yml`. To bump it, change the `version:`
   there and the version you run locally in the same PR.
 - The **Security** workflow runs `govulncheck` on PRs, on `main` and weekly, and

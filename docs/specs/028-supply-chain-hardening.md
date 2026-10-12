@@ -40,6 +40,9 @@ dependencies, and releases ship without checksums, SBOMs or provenance.
 - OpenSSF Scorecard (optional in the issue) is left out. It's most useful once
   the repo is public.
 - govulncheck's first run found 34 reachable standard-library vulnerabilities, because
-  `setup-go` installs exactly the `go` version in `go.mod` (it was `1.26.0`, which
-  release binaries were built with too). `go.mod` now says `go 1.26.8`. Dependabot
-  doesn't bump the `go` directive, so raise it when govulncheck flags a stdlib fix.
+  `setup-go` with `go-version-file` installs exactly the `go` line in `go.mod`
+  (`1.26.0`), and release binaries were built with it too. Every `setup-go` now uses
+  `go-version: "1.26.x"` with `check-latest: true`, so CI and releases always get the
+  newest 1.26 patch. `go.mod` stays at the `1.26.0` minimum. Moving to Go 1.27 means
+  changing those `setup-go` lines and the Dockerfile's `golang:1.26-alpine` (Dependabot
+  proposes the image bump).
