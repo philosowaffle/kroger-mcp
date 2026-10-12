@@ -15,8 +15,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -26,18 +28,42 @@ import (
 // has not been linked yet, or the link has expired.
 var ErrNotLinked = errors.New("kroger account is not linked: call the kroger_login tool and open the returned URL to link it")
 
+// ErrRateLimited matches errors from a 429 response: the app has used up one
+// of its Kroger API quotas.
+var ErrRateLimited = errors.New("kroger api: rate limited")
+
+// maxRetryWait is the longest Retry-After a GET will wait out before retrying.
+// Anything longer means a quota is spent, and waiting inside a tool call won't
+// help.
+const maxRetryWait = 5 * time.Second
+
 // APIError is a non-2xx response from the Kroger API.
 type APIError struct {
 	Status int
 	Body   string
+	// RetryAfter is the wait the response's Retry-After header asked for, or
+	// zero when it had none.
+	RetryAfter time.Duration
 }
 
 func (e *APIError) Error() string {
+	if e.Status == http.StatusTooManyRequests {
+		msg := "kroger api: rate limited (status 429): this app's Kroger API quota is used up, so try again later"
+		if e.RetryAfter > 0 {
+			msg += fmt.Sprintf(" (Kroger asked to wait %s)", e.RetryAfter.Round(time.Second))
+		}
+		return msg + ". Retrying right away will fail again."
+	}
 	body := e.Body
 	if len(body) > 500 {
 		body = body[:500] + "…"
 	}
 	return fmt.Sprintf("kroger api: status %d: %s", e.Status, body)
+}
+
+// Is reports a 429 as ErrRateLimited.
+func (e *APIError) Is(target error) bool {
+	return target == ErrRateLimited && e.Status == http.StatusTooManyRequests
 }
 
 // Client talks to the Kroger API. It is safe for concurrent use.
@@ -46,6 +72,8 @@ type Client struct {
 	http  *http.Client
 	state *stateFile
 	now   func() time.Time
+	// sleep waits before a retry; tests replace it.
+	sleep func(context.Context, time.Duration) error
 
 	appMu    sync.Mutex
 	appToken *token
@@ -80,6 +108,7 @@ func New(cfg Config) (*Client, error) {
 		http:    &http.Client{Timeout: 30 * time.Second},
 		state:   st,
 		now:     time.Now,
+		sleep:   sleepCtx,
 		pending: make(map[string]pendingAuth),
 	}
 	// Read c.now on each call so tests can move the clock.
@@ -241,8 +270,34 @@ func (c *Client) sendJSON(ctx context.Context, method, bearer, path string, body
 }
 
 // do sends req, turns non-2xx responses into *APIError, and decodes a JSON
-// body into out when out is non-nil and the body is non-empty.
+// body into out when out is non-nil and the body is non-empty. A GET that is
+// throttled (429 or 503) with a short Retry-After is retried once. Nothing
+// else is retried: a repeated cart add could add items twice.
 func (c *Client) do(req *http.Request, out any) error {
+	err := c.send(req, out)
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) || !retryable(req, apiErr) {
+		return err
+	}
+	if c.sleep(req.Context(), apiErr.RetryAfter) != nil {
+		return err
+	}
+	return c.send(req.Clone(req.Context()), out)
+}
+
+// retryable reports whether a failed request may be sent again.
+func retryable(req *http.Request, e *APIError) bool {
+	if req.Method != http.MethodGet {
+		return false
+	}
+	if e.Status != http.StatusTooManyRequests && e.Status != http.StatusServiceUnavailable {
+		return false
+	}
+	return e.RetryAfter > 0 && e.RetryAfter <= maxRetryWait
+}
+
+// send makes one attempt at req.
+func (c *Client) send(req *http.Request, out any) error {
 	resp, err := c.http.Do(req)
 	if err != nil {
 		return fmt.Errorf("kroger api: %w", err)
@@ -254,7 +309,15 @@ func (c *Client) do(req *http.Request, out any) error {
 		return fmt.Errorf("kroger api: read body: %w", err)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		return &APIError{Status: resp.StatusCode, Body: strings.TrimSpace(string(body))}
+		apiErr := &APIError{
+			Status:     resp.StatusCode,
+			Body:       strings.TrimSpace(string(body)),
+			RetryAfter: parseRetryAfter(resp.Header.Get("Retry-After"), c.now()),
+		}
+		if resp.StatusCode == http.StatusTooManyRequests {
+			slog.Warn("kroger: rate limited", "method", req.Method, "path", req.URL.Path, "retry_after", apiErr.RetryAfter)
+		}
+		return apiErr
 	}
 	if out == nil || len(bytes.TrimSpace(body)) == 0 {
 		return nil
@@ -263,4 +326,35 @@ func (c *Client) do(req *http.Request, out any) error {
 		return fmt.Errorf("kroger api: decode response: %w", err)
 	}
 	return nil
+}
+
+// parseRetryAfter reads a Retry-After header, either delay-seconds or an
+// HTTP date. It returns zero when the header is missing or unparseable.
+func parseRetryAfter(v string, now time.Time) time.Duration {
+	v = strings.TrimSpace(v)
+	if v == "" {
+		return 0
+	}
+	if secs, err := strconv.Atoi(v); err == nil {
+		if secs < 0 {
+			return 0
+		}
+		return time.Duration(secs) * time.Second
+	}
+	if t, err := http.ParseTime(v); err == nil && t.After(now) {
+		return t.Sub(now)
+	}
+	return 0
+}
+
+// sleepCtx waits for d or until ctx is done.
+func sleepCtx(ctx context.Context, d time.Duration) error {
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-t.C:
+		return nil
+	}
 }

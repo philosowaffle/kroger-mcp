@@ -1141,3 +1141,137 @@ func TestStateCreatesDataDir(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestRateLimits(t *testing.T) {
+	ctx := context.Background()
+	milk := ProductQuery{Term: "milk"}
+
+	// newThrottled returns a client whose retry waits are recorded, not slept.
+	newThrottled := func(t *testing.T) (*Client, *krogertest.Server, *[]time.Duration) {
+		c, fake := newTestClient(t)
+		var waits []time.Duration
+		c.sleep = func(_ context.Context, d time.Duration) error {
+			waits = append(waits, d)
+			return nil
+		}
+		return c, fake, &waits
+	}
+
+	t.Run("GET retries once after Retry-After", func(t *testing.T) {
+		for _, status := range []int{http.StatusTooManyRequests, http.StatusServiceUnavailable} {
+			c, fake, waits := newThrottled(t)
+			fake.FailNext("/products", 1, status, "2")
+			if _, err := c.SearchProducts(ctx, milk); err != nil {
+				t.Fatalf("%d: %v", status, err)
+			}
+			if n := len(fake.Queries("/products")); n != 2 {
+				t.Errorf("%d: %d requests, want 2", status, n)
+			}
+			if !reflect.DeepEqual(*waits, []time.Duration{2 * time.Second}) {
+				t.Errorf("%d: waits = %v", status, *waits)
+			}
+		}
+	})
+
+	t.Run("HTTP-date Retry-After", func(t *testing.T) {
+		c, fake, waits := newThrottled(t)
+		now := time.Now().UTC().Truncate(time.Second)
+		c.now = func() time.Time { return now }
+		fake.FailNext("/products", 1, http.StatusTooManyRequests, now.Add(3*time.Second).Format(http.TimeFormat))
+		if _, err := c.SearchProducts(ctx, milk); err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(*waits, []time.Duration{3 * time.Second}) {
+			t.Errorf("waits = %v", *waits)
+		}
+	})
+
+	t.Run("GET retries only once", func(t *testing.T) {
+		c, fake, waits := newThrottled(t)
+		fake.FailNext("/products", 2, http.StatusTooManyRequests, "1")
+		_, err := c.SearchProducts(ctx, milk)
+		if !errors.Is(err, ErrRateLimited) {
+			t.Fatalf("err = %v, want ErrRateLimited", err)
+		}
+		if n := len(fake.Queries("/products")); n != 2 || len(*waits) != 1 {
+			t.Errorf("requests = %d, waits = %v", n, *waits)
+		}
+	})
+
+	t.Run("no retry without a short Retry-After", func(t *testing.T) {
+		for _, ra := range []string{"", "3600", "soon", "-1"} {
+			c, fake, waits := newThrottled(t)
+			fake.FailNext("/products", 1, http.StatusTooManyRequests, ra)
+			_, err := c.SearchProducts(ctx, milk)
+			if !errors.Is(err, ErrRateLimited) {
+				t.Fatalf("%q: err = %v, want ErrRateLimited", ra, err)
+			}
+			if n := len(fake.Queries("/products")); n != 1 || len(*waits) != 0 {
+				t.Errorf("%q: requests = %d, waits = %v", ra, n, *waits)
+			}
+		}
+	})
+
+	t.Run("cancelled wait does not retry", func(t *testing.T) {
+		c, fake := newTestClient(t)
+		c.sleep = func(context.Context, time.Duration) error { return context.Canceled }
+		fake.FailNext("/products", 1, http.StatusTooManyRequests, "1")
+		if _, err := c.SearchProducts(ctx, milk); !errors.Is(err, ErrRateLimited) {
+			t.Fatalf("err = %v, want ErrRateLimited", err)
+		}
+		if n := len(fake.Queries("/products")); n != 1 {
+			t.Errorf("requests = %d, want 1", n)
+		}
+	})
+
+	t.Run("cart add is never retried", func(t *testing.T) {
+		c, fake, waits := newThrottled(t)
+		link(t, c)
+		fake.FailNext("/cart/add", 1, http.StatusTooManyRequests, "1")
+		_, err := c.AddToCart(ctx, []CartItem{{UPC: "111", Quantity: 1}})
+		if !errors.Is(err, ErrRateLimited) {
+			t.Fatalf("err = %v, want ErrRateLimited", err)
+		}
+		if n := len(fake.Queries("/cart/add")); n != 1 || len(*waits) != 0 {
+			t.Errorf("requests = %d, waits = %v", n, *waits)
+		}
+		if adds := fake.CartAdds(); len(adds) != 0 {
+			t.Errorf("cart adds = %+v", adds)
+		}
+	})
+}
+
+func TestAPIErrorMessage(t *testing.T) {
+	tests := []struct {
+		name string
+		err  *APIError
+		want []string
+	}{
+		{"rate limited", &APIError{Status: 429, Body: "{}"}, []string{"rate limited", "quota", "try again later", "right away"}},
+		{"rate limited with wait", &APIError{Status: 429, RetryAfter: time.Hour}, []string{"wait 1h0m0s"}},
+		{"other", &APIError{Status: 500, Body: "boom"}, []string{"status 500: boom"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			for _, w := range tt.want {
+				if !strings.Contains(tt.err.Error(), w) {
+					t.Errorf("%q does not mention %q", tt.err.Error(), w)
+				}
+			}
+		})
+	}
+	if errors.Is(&APIError{Status: 503}, ErrRateLimited) {
+		t.Error("503 matched ErrRateLimited")
+	}
+}
+
+func TestSleepCtx(t *testing.T) {
+	if err := sleepCtx(context.Background(), time.Millisecond); err != nil {
+		t.Errorf("sleep: %v", err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := sleepCtx(ctx, time.Hour); !errors.Is(err, context.Canceled) {
+		t.Errorf("cancelled sleep: %v", err)
+	}
+}

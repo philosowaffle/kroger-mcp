@@ -1,7 +1,7 @@
 # Spec: Handle Kroger rate limits (429) gracefully
 
 **Issue:** #27
-**Status:** In Progress
+**Status:** Complete
 
 ## Problem
 
@@ -10,11 +10,11 @@ Kroger's public API enforces per-app daily quotas. Today a 429 comes back as a r
 
 ## Acceptance Criteria
 
-- [ ] A GET that gets 429 with `Retry-After` retries once and then succeeds.
-- [ ] A cart write (`PUT /cart/add`) that gets 429 is not retried.
-- [ ] The tool result on quota exhaustion clearly says the quota is used up and not
+- [x] A GET that gets 429 with `Retry-After` retries once and then succeeds.
+- [x] A cart write (`PUT /cart/add`) that gets 429 is not retried.
+- [x] The tool result on quota exhaustion clearly says the quota is used up and not
       to retry right away.
-- [ ] Quotas are documented in the README and `docs/api-research.md`.
+- [x] Quotas are documented in the README and `docs/api-research.md`.
 
 ## Notes
 
@@ -26,4 +26,10 @@ Kroger's public API enforces per-app daily quotas. Today a 429 comes back as a r
 - A 429 returns an `*APIError` that matches `errors.Is(err, ErrRateLimited)`; its
   message is written for Claude.
 - Quota hits are logged at warn.
-- `krogertest.Server.Throttle` makes the fake return 429 on demand.
+- `krogertest.Server.FailNext` makes the fake return 429 (or any status) on demand.
+- Tests: `TestRateLimits` (GET retry on 429 and 503, HTTP-date `Retry-After`, a
+  single retry only, no retry without a short `Retry-After`, a cancelled wait, cart
+  add never retried), `TestAPIErrorMessage`, `TestSleepCtx`, and
+  `TestSearchProducts_QuotaExhaustedMessage` over MCP.
+- The fake helper is `krogertest.Server.FailNext(path, n, status, retryAfter)`,
+  general enough for 503s too.

@@ -30,6 +30,17 @@ products; hours, departments and geolocation for stores.
 The Kroger public API can **add** to a cart, but it cannot read the cart, remove
 items or check out. You finish on the store's website or app.
 
+### Rate limits
+
+Kroger gives each developer app a daily quota per API: about 10,000 product
+calls, 1,600 per location endpoint, and 5,000 each for cart and identity (check
+the [developer portal](https://developer.kroger.com) for current numbers). The
+5-minute product cache saves calls when Claude asks for details on search
+results. When Kroger answers 429, read-only lookups retry once if Kroger asks
+for a wait of 5 seconds or less. Cart adds are never retried, so items can't be
+added twice. Otherwise the tool tells Claude the quota is used up and to try
+again later.
+
 ## Two kinds of auth
 
 There are two separate auth layers, and it helps to keep them apart:

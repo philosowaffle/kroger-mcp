@@ -382,3 +382,14 @@ func TestLocationTools(t *testing.T) {
 		t.Errorf("unknown department: error = %q", msg)
 	}
 }
+
+func TestSearchProducts_QuotaExhaustedMessage(t *testing.T) {
+	h := newHarness(t)
+	h.fake.FailNext("/products", 1, 429, "")
+	msg := h.call(t, "search_products", map[string]any{"term": "milk"}, nil)
+	for _, want := range []string{"quota", "try again later", "right away"} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("error = %q, want mention of %q", msg, want)
+		}
+	}
+}
