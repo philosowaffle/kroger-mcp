@@ -137,8 +137,10 @@ func (c *Client) recordProfile(ctx context.Context, tok string) {
 var callbackPage = template.Must(template.New("callback").Parse(`<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>kroger-mcp</title>
-<style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:4rem auto;padding:0 1rem;line-height:1.5}</style>
-</head><body><h1>{{.Title}}</h1><p>{{.Message}}</p></body></html>
+<style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:4rem auto;padding:0 1rem;line-height:1.5}footer{margin-top:3rem;font-size:.8rem;opacity:.7}</style>
+</head><body><h1>{{.Title}}</h1><p>{{.Message}}</p>
+<footer>kroger-mcp is an unofficial, self-hosted project. It is not affiliated with or endorsed by The Kroger Co.</footer>
+</body></html>
 `))
 
 // CallbackHandler handles Kroger's OAuth redirect. It must be reachable by

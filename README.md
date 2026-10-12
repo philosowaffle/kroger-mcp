@@ -1,5 +1,10 @@
 # kroger-mcp
 
+[![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue.svg)](LICENSE)
+
+> **Unofficial.** kroger-mcp is not affiliated with or endorsed by The Kroger Co.
+> See [Disclaimer](#disclaimer).
+
 An [MCP](https://modelcontextprotocol.io) server that wraps the
 [Kroger Public API](https://developer.kroger.com), so Claude can help you shop at
 Kroger-family stores (King Soopers, Kroger, Ralphs, Fred Meyer, Fry's, Smith's,
@@ -221,3 +226,20 @@ task run               # go run . (loads .env)
 
 See [`docs/architecture.md`](docs/architecture.md) for how it fits together and
 [`docs/runbook.md`](docs/runbook.md) for operations and troubleshooting.
+
+## Disclaimer
+
+kroger-mcp is an independent, unofficial project. It is not affiliated with,
+endorsed by, or sponsored by The Kroger Co. or any of its banners (King Soopers,
+Ralphs, Fred Meyer, Fry's, Smith's, and others). "Kroger" and the banner names are
+trademarks of their respective owners and are used here only to describe what the
+software works with.
+
+kroger-mcp has no Kroger credentials of its own. Each self-hoster registers their own
+app on the [Kroger Developer portal](https://developer.kroger.com) and agrees to
+Kroger's developer terms, which govern every API call the server makes on their behalf.
+
+## License
+
+[GPL-3.0](LICENSE). You may use, modify and redistribute kroger-mcp under the terms of
+the GNU General Public License v3.0.

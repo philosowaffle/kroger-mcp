@@ -1130,6 +1130,9 @@ func TestCallbackHandler(t *testing.T) {
 		if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "expired") {
 			t.Errorf("status = %d body = %s", rec.Code, rec.Body)
 		}
+		if !strings.Contains(rec.Body.String(), "not affiliated with or endorsed by The Kroger Co.") {
+			t.Error("callback page is missing the non-affiliation disclaimer")
+		}
 		if c.Linked() {
 			t.Error("forged state linked an account")
 		}
