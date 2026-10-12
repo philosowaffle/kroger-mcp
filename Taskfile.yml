@@ -17,6 +17,12 @@ tasks:
     cmds:
       - go test ./...
 
+  test:integration:
+    desc: Run integration tests against the Kroger certification API (reads .env)
+    dotenv: [".env"]
+    cmds:
+      - go test -tags integration -count=1 -v ./integration/...
+
   lint:
     desc: Run golangci-lint
     cmds:

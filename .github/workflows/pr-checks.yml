@@ -23,7 +23,11 @@ jobs:
           fi
 
       - name: Vet
-        run: go vet ./...
+        run: |
+          go vet ./...
+          # Integration tests only build with their tag; vet them too so they
+          # can't rot even when the integration job has no credentials.
+          go vet -tags integration ./...
 
       - name: Lint
         uses: golangci/golangci-lint-action@v8
@@ -45,6 +49,34 @@ jobs:
             echo "ERROR: tmp/ directory must be deleted before merge"
             exit 1
           fi
+
+  integration:
+    name: integration (Kroger certification API)
+    runs-on: ubuntu-latest
+    # One run at a time per PR, so pushes don't pile up calls to Kroger.
+    concurrency:
+      group: integration-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Integration tests
+        env:
+          KROGER_CLIENT_ID: ${{ secrets.KROGER_CERT_CLIENT_ID }}
+          KROGER_CLIENT_SECRET: ${{ secrets.KROGER_CERT_CLIENT_SECRET }}
+          KROGER_API_BASE_URL: https://api-ce.kroger.com/v1
+          KROGER_TEST_ZIP: ${{ vars.KROGER_TEST_ZIP }}
+        run: |
+          # Secrets aren't available to pull requests from forks.
+          if [ -z "$KROGER_CLIENT_ID" ] || [ -z "$KROGER_CLIENT_SECRET" ]; then
+            echo "::warning::KROGER_CERT_CLIENT_ID / KROGER_CERT_CLIENT_SECRET are not set; skipping integration tests"
+            exit 0
+          fi
+          go test -tags integration -count=1 -v ./integration/...
 
   semantic-pr:
     runs-on: ubuntu-latest

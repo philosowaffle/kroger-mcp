@@ -110,5 +110,8 @@ The Kroger client itself uses only the standard library.
   `mcp.NewInMemoryTransports`, backed by the fake.
 - `main_test.go` checks routing with MCP auth on and off, including that the
   Kroger callback and well-known paths stay reachable without a token.
+- `integration/` (build tag `integration`) runs the read-only client calls and
+  tools against the live Kroger certification API. CI runs it as its own PR
+  check when the `KROGER_CERT_*` secrets are set. See the runbook.
 - `internal/auth` tests sign real RS256 JWTs and check the middleware against a
   static key set.

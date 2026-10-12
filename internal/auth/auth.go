@@ -18,6 +18,8 @@ package auth
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -44,15 +46,30 @@ type Config struct {
 	// Scopes, if set, are required on every request and advertised as
 	// supported.
 	Scopes []string
+	// RequireATJWT rejects tokens whose JOSE typ header isn't at+jwt
+	// (RFC 9068), so an ID token for the same audience can't be used as an
+	// access token. On unless KROGER_MCP_OIDC_REQUIRE_AT_JWT is false.
+	RequireATJWT bool
 }
 
 // ConfigFromEnv reads the KROGER_MCP_OIDC_* variables.
 func ConfigFromEnv() Config {
 	return Config{
-		Issuer:   strings.TrimSpace(os.Getenv("KROGER_MCP_OIDC_ISSUER")),
-		Resource: strings.TrimSpace(os.Getenv("KROGER_MCP_OIDC_RESOURCE")),
-		Scopes:   strings.Fields(os.Getenv("KROGER_MCP_OIDC_SCOPES")),
+		Issuer:       strings.TrimSpace(os.Getenv("KROGER_MCP_OIDC_ISSUER")),
+		Resource:     strings.TrimSpace(os.Getenv("KROGER_MCP_OIDC_RESOURCE")),
+		Scopes:       strings.Fields(os.Getenv("KROGER_MCP_OIDC_SCOPES")),
+		RequireATJWT: !isFalse(os.Getenv("KROGER_MCP_OIDC_REQUIRE_AT_JWT")),
 	}
+}
+
+// isFalse reports whether s is an explicit "off" value. Anything else,
+// including the empty string, leaves a default-on setting on.
+func isFalse(s string) bool {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "false", "0", "no", "off":
+		return true
+	}
+	return false
 }
 
 // Enabled reports whether an issuer is configured, which turns auth on.
@@ -137,6 +154,13 @@ func (a *Authenticator) metadataURL() string {
 }
 
 func (a *Authenticator) verify(ctx context.Context, token string, _ *http.Request) (*mcpauth.TokenInfo, error) {
+	if a.cfg.RequireATJWT {
+		if err := checkAccessTokenType(token); err != nil {
+			slog.Warn("auth: token rejected", "err", err)
+			return nil, fmt.Errorf("%w: %v", mcpauth.ErrInvalidToken, err)
+		}
+	}
+
 	idt, err := a.verifier.Verify(ctx, token)
 	if err != nil {
 		// The client only sees a bare 401, so log the real reason. Typical
@@ -147,13 +171,59 @@ func (a *Authenticator) verify(ctx context.Context, token string, _ *http.Reques
 	}
 
 	var claims struct {
-		Scope string `json:"scope"`
+		Scope string          `json:"scope"`
+		Scp   json.RawMessage `json:"scp"`
 	}
-	_ = idt.Claims(&claims)
+	if err := idt.Claims(&claims); err != nil {
+		slog.Warn("auth: token rejected", "err", err)
+		return nil, fmt.Errorf("%w: claims: %v", mcpauth.ErrInvalidToken, err)
+	}
 
 	return &mcpauth.TokenInfo{
-		Scopes:     strings.Fields(claims.Scope),
+		Scopes:     append(strings.Fields(claims.Scope), scpScopes(claims.Scp)...),
 		Expiration: idt.Expiry,
 		UserID:     idt.Subject,
 	}, nil
+}
+
+// checkAccessTokenType requires the JOSE typ header of an RFC 9068 access
+// token. go-oidc's verifier doesn't look at typ, so without this an ID token
+// whose aud contains the resource would also be accepted.
+func checkAccessTokenType(token string) error {
+	header, _, ok := strings.Cut(token, ".")
+	if !ok {
+		return errors.New("malformed jwt")
+	}
+	b, err := base64.RawURLEncoding.DecodeString(header)
+	if err != nil {
+		return fmt.Errorf("malformed jwt header: %w", err)
+	}
+	var h struct {
+		Typ string `json:"typ"`
+	}
+	if err := json.Unmarshal(b, &h); err != nil {
+		return fmt.Errorf("malformed jwt header: %w", err)
+	}
+	switch strings.ToLower(h.Typ) {
+	case "at+jwt", "application/at+jwt":
+		return nil
+	}
+	return fmt.Errorf("jwt typ %q is not at+jwt; is this an ID token? (set KROGER_MCP_OIDC_REQUIRE_AT_JWT=false if your IdP omits it)", h.Typ)
+}
+
+// scpScopes reads the scp claim, which IdPs emit as a space-separated string
+// or a JSON array.
+func scpScopes(raw json.RawMessage) []string {
+	if len(raw) == 0 {
+		return nil
+	}
+	var list []string
+	if err := json.Unmarshal(raw, &list); err == nil {
+		return list
+	}
+	var s string
+	if err := json.Unmarshal(raw, &s); err == nil {
+		return strings.Fields(s)
+	}
+	return nil
 }
