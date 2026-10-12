@@ -18,13 +18,9 @@ tasks:
       - go test ./...
 
   test:integration:
-    desc: Run integration tests against the Kroger certification API (reads .env), after vet, lint and unit tests pass
+    desc: Run integration tests against the Kroger certification API (reads .env)
     dotenv: [".env"]
     cmds:
-      # Local checks first, so a broken build doesn't spend Kroger API quota.
-      - task: vet
-      - task: lint
-      - task: test
       - go test -tags integration -count=1 -v ./integration/...
 
   lint:

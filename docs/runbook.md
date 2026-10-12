@@ -56,8 +56,7 @@ KROGER_CLIENT_SECRET=...
 task test:integration
 ```
 
-It runs vet, lint and the unit tests first and stops if any fail, so a broken
-build doesn't spend Kroger API quota. Without credentials the tests skip.
+Without credentials the tests skip.
 
 In CI, the `integration` job in `pr-checks.yml` runs them on every PR, once
 the `checks` job (format, vet, lint, build, unit tests, Docker build) has passed. It
