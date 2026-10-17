@@ -3,7 +3,7 @@
 # ── Build stage ───────────────────────────────────────────────────────────────
 # Build on the runner's native platform and cross-compile for the target, so
 # multi-arch images don't need QEMU emulation.
-FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS build
+FROM --platform=$BUILDPLATFORM golang:1.27-alpine AS build
 ARG TARGETOS TARGETARCH
 WORKDIR /src
 
