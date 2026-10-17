@@ -14,7 +14,7 @@ It follows the same shape as forge-mcp: one package per concern under
 ## Components
 
 ```
-main.go                     wiring: flags, routes, auth wrap, request log, graceful shutdown
+main.go                     wiring: flags, routes, auth wrap, exposure check, request log, graceful shutdown
 internal/server/            server.New(client): builds mcp.Server, registers every tool
 internal/kroger/            Kroger API client: tokens, OAuth callback, locations, products, cart
 internal/kroger/krogertest/ in-process fake Kroger API used by tests
@@ -42,7 +42,7 @@ covered by the in-memory end-to-end tests in `internal/server/server_test.go`.
   code and persists the tokens. `userAccessToken` refreshes on demand under a
   mutex, so concurrent calls don't spend the same refresh token twice. A
   rejected refresh clears the link, and tools report `ErrNotLinked`.
-- *State* (`state.go`): `DATA_DIR/state.json` holds the user token and the
+- *State* (`state.go`): `KROGER_MCP_DATA_DIR/state.json` holds the user token and the
   preferred store. It is written 0600 and swapped in atomically (temp file +
   rename), and memory only changes if the write succeeds.
 - *Records*: product and location calls return records that carry both a lite
@@ -55,13 +55,23 @@ covered by the in-memory end-to-end tests in `internal/server/server_test.go`.
   fill it and `GetProduct` reads it, so asking for full details on a search
   result doesn't call Kroger again. It holds at most 2000 entries; expired
   entries are evicted first, then the oldest.
+- *Rate limits* (`client.go`): a 429 or 503 on a GET with a `Retry-After` of
+  at most 5 seconds is retried once. Cart adds and token requests are never
+  retried, since a retried add could add items twice. A 429 returns an error
+  matching `ErrRateLimited` whose message tells Claude the quota is used up.
 
 **`internal/auth`** makes the MCP endpoint an OAuth protected resource (RFC
 9728) when `KROGER_MCP_OIDC_ISSUER` is set. It never runs flows itself. It uses
 the SDK's `auth.RequireBearerToken` and `auth.ProtectedResourceMetadataHandler`
 and validates RFC 9068 JWTs with go-oidc (discovery + cached JWKS, `aud` must
-contain `KROGER_MCP_OIDC_RESOURCE`). The local package is `auth`, so the SDK's
+contain `KROGER_MCP_OIDC_RESOURCE`, and `typ` must be `at+jwt` unless
+`KROGER_MCP_OIDC_REQUIRE_AT_JWT=false`). The local package is `auth`, so the SDK's
 is imported as `mcpauth`.
+
+**Exposure check** (`main.go`): with MCP auth off, the server only starts on a
+loopback address (the default is `127.0.0.1:8080`) unless
+`KROGER_MCP_ALLOW_UNAUTHENTICATED=true`. Anyone who can reach an unauthenticated
+endpoint can add to the cart or link their own Kroger account in its place.
 
 ## HTTP routes
 

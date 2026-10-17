@@ -1,6 +1,6 @@
 # Spec: Basic integration tests against the Kroger certification API
 
-**Issue:** none (requested directly)
+**Issue:** none (requested directly; landed in PR #34)
 **Status:** Complete
 
 ## Problem

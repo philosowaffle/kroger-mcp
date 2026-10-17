@@ -24,7 +24,7 @@ labels: feat
 
 ## Checklist
 
-- [ ] Spec file written (`docs/specs/issue-NNN-short-title.md`)
+- [ ] Spec file written (`docs/specs/NNN-short-title.md`)
 - [ ] Design fleshed out and committed (`tmp/plan.md`)
 - [ ] Implementation complete
 - [ ] Tests written and passing

@@ -16,8 +16,16 @@
 4. `task run` to start on `127.0.0.1:8080`, with state in `./data/`.
 5. `claude mcp add --transport http kroger http://localhost:8080`
 
+MCP auth is off unless `KROGER_MCP_OIDC_ISSUER` is set, so the server fails closed:
+without auth it only listens on loopback. Setting `KROGER_MCP_ADDR` to a non-loopback
+address (e.g. `:8080`) makes it refuse to start unless auth is on or
+`KROGER_MCP_ALLOW_UNAUTHENTICATED=true`. See README → Running without auth.
+
 For the Docker path, `task docker:up` pulls and starts the published image
-(compose reads `.env`). State is kept in the `kroger-data` volume. To run
+(compose reads `.env`). State is kept in the `kroger-data` volume. The sample
+compose file publishes the port on `127.0.0.1` only and sets
+`KROGER_MCP_ALLOW_UNAUTHENTICATED=true`, because inside the container the server
+has to listen on `:8080`. Remove that variable once MCP auth is configured. To run
 local source in Docker, uncomment `build: .` in `docker-compose.yml` and run
 `docker compose up -d --build`.
 
@@ -131,6 +139,16 @@ written with mode 0600. Back it up if you don't want to relink; delete it to
 unlink.
 
 ## Troubleshooting
+
+**Server exits with `refusing to listen on ":8080" without auth`**
+`KROGER_MCP_ADDR` isn't a loopback address and MCP auth is off. Set
+`KROGER_MCP_OIDC_ISSUER` (and `KROGER_MCP_OIDC_RESOURCE`) to require OAuth, listen
+on `127.0.0.1:8080`, or set `KROGER_MCP_ALLOW_UNAUTHENTICATED=true` if the network
+is trusted.
+
+**Tools say the Kroger API quota is used up (429)**
+Kroger enforces per-app daily quotas. Reads retry once when Kroger asks for a short
+wait; cart adds never retry. Otherwise wait for the quota to reset.
 
 **`add_to_cart` says the account isn't linked**
 Ask Claude to run `kroger_login` and open the URL. Kroger refresh tokens last

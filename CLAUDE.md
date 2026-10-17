@@ -4,6 +4,12 @@
 | ----------------- | ---------------- |
 | 1.1               | 2026-03-22       |
 
+**Standards deviations.** This project has no database: state is a JSON file
+(`state.json`, see Project-Specific Notes). The template's Database section, its
+`task db:generate` and sqlc entries, and the MySQL compose service are removed on
+purpose. When running `syncing-standards`, treat those template parts as conflicts and
+don't reintroduce them.
+
 ## Project Overview
 
 kroger-mcp — a self-hosted Go MCP server that wraps the Kroger Public API so Claude can
@@ -29,7 +35,7 @@ Architecture, ADRs, and the local dev runbook live in `/docs/`.
 
 - **Language:** Go
 - **Task runner:** Task (`go-task`) — see `Taskfile.yml` for all available tasks
-- **Database queries:** sqlc — run `task db:generate` after modifying schema or queries
+- **State:** no database — runtime state is a JSON file (`state.json`); see Project-Specific Notes
 - **Versioning:** Semantic Versioning (`vMAJOR.MINOR.PATCH`) — tags are the source of truth
 - **Commits:** Conventional Commits format (see below)
 - **Branches:** `<type>/issue<#>-short-description`
@@ -39,30 +45,25 @@ Architecture, ADRs, and the local dev runbook live in `/docs/`.
 
 Standard tasks defined in `Taskfile.yml`:
 
-| Task                | Description                          |
-| ------------------- | ------------------------------------ |
-| `task build`        | Build the project binary             |
-| `task test`         | Run all unit tests (`go test ./...`) |
-| `task lint`         | Run `golangci-lint`                  |
-| `task fmt`          | Run `go fmt ./...`                   |
-| `task vet`          | Run `go vet ./...`                   |
-| `task docker:build` | Build the Docker image               |
-| `task docker:up`    | Start via docker-compose             |
-| `task docker:down`  | Stop docker-compose                  |
-| `task db:generate`  | Run `sqlc generate`                  |
+| Task                    | Description                                            |
+| ----------------------- | ------------------------------------------------------ |
+| `task build`            | Build the project binary                               |
+| `task run`              | Run the server locally (reads `.env`)                  |
+| `task test`             | Run all unit tests (`go test ./...`)                   |
+| `task test:integration` | Run integration tests against the Kroger cert API      |
+| `task ci`               | Run what PR Checks runs (fmt check, vet, lint, build, test) |
+| `task lint`             | Run `golangci-lint`                                    |
+| `task fmt`              | Run `go fmt ./...`                                     |
+| `task vet`              | Run `go vet ./...`                                     |
+| `task docker:build`     | Build the Docker image                                 |
+| `task docker:up`        | Start via docker-compose                               |
+| `task docker:down`      | Stop docker-compose                                    |
 
 ## Containerization
 
 - `Dockerfile` uses a multi-stage build (build stage + minimal runtime stage)
-- `docker-compose.yml` handles local development (includes a MySQL service if the project uses a database)
+- `docker-compose.yml` is a sample self-hosting setup that runs the published image (no other services)
 - Self-hosted deployment is the default target
-
-## Database
-
-- **MySQL** is the default database
-- **sqlc** is used for type-safe query generation
-- Schema files live in `db/schema/`, queries in `db/queries/`, config in `db/sqlc.yaml`
-- Migrations are managed explicitly — document the chosen migration tool here when one is added
 
 ## Testing
 
@@ -120,14 +121,12 @@ Local development setup and operational reference. Should be sufficient for a ne
 - Go 1.2x+
 - Docker + Docker Compose
 - Task (`go-task`)
-- sqlc
 
 ## Local Setup
 1. Clone the repo
 2. Copy `.env.example` to `.env` and fill in values
-3. `task docker:up` — start dependencies
-4. `task build` — build the binary
-5. `task test` — verify everything works
+3. `task build` — build the binary
+4. `task test` — verify everything works
 
 ## Common Tasks
 See `Taskfile.yml` for all available tasks.
@@ -138,7 +137,7 @@ See `Taskfile.yml` for all available tasks.
 
 ### `docs/decisions/`
 
-Architecture Decision Records (ADRs). One file per decision, named `NNN-short-title.md` (e.g. `001-use-sqlc-for-database.md`). Write an ADR for any significant technical choice that future contributors should understand.
+Architecture Decision Records (ADRs). One file per decision, named `NNN-short-title.md` (e.g. `002-mcp-server-pivot.md`). Write an ADR for any significant technical choice that future contributors should understand.
 
 ```markdown
 # NNN — Title
@@ -295,7 +294,7 @@ Set native GitHub `Blocks` / `Blocked by` relationships on issues to track depen
 - **Two auth layers — keep them separate.** `internal/auth` guards the MCP endpoint
   (`KROGER_MCP_OIDC_*`, delegated to an external IdP). `internal/kroger` holds Kroger
   credentials: an in-memory client-credentials app token, plus the shopper's user token
-  from the `kroger_login` flow, persisted in `DATA_DIR/state.json`.
+  from the `kroger_login` flow, persisted in `KROGER_MCP_DATA_DIR/state.json`.
 - **The Kroger callback route is unauthenticated on purpose** (browser redirect). It
   accepts only single-use states minted by `kroger_login`. Don't move it behind the
   bearer middleware, and don't add ways to mint states outside an MCP tool call.

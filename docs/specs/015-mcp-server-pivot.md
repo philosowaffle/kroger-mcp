@@ -1,6 +1,6 @@
 # Spec: Pivot to a dockerized Kroger MCP server
 
-**Issue:** none yet (requested directly; see PR)
+**Issue:** none (requested directly; landed in PR #15)
 **Status:** Complete
 
 ## Problem
