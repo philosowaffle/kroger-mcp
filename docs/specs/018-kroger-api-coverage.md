@@ -1,6 +1,6 @@
 # Spec: Full Kroger public API coverage and detail levels
 
-**Issue:** none (requested directly)
+**Issue:** none (requested directly; landed in PR #18)
 **Status:** Complete
 
 ## Problem
