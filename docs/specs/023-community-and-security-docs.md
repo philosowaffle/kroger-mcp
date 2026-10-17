@@ -11,14 +11,14 @@ know the workflow: Conventional Commits, branch naming, spec-first, squash merge
 
 ## Acceptance Criteria
 
-- [ ] `SECURITY.md` covers supported versions, private reporting through GitHub Security
+- [x] `SECURITY.md` covers supported versions, private reporting through GitHub Security
       Advisories, scope, and a threat model: the two auth layers, `state.json`
       sensitivity, the unauthenticated callback with single-use state, and running with
       MCP auth off.
-- [ ] `CONTRIBUTING.md` condenses CLAUDE.md for humans: Task, tests against the
+- [x] `CONTRIBUTING.md` condenses CLAUDE.md for humans: Task, tests against the
       `krogertest` fake, how to add a tool, PR rules.
-- [ ] `CODE_OF_CONDUCT.md` is the Contributor Covenant.
-- [ ] `.github/ISSUE_TEMPLATE/config.yml` turns off blank issues and links security
+- [x] `CODE_OF_CONDUCT.md` is the Contributor Covenant.
+- [x] `.github/ISSUE_TEMPLATE/config.yml` turns off blank issues and links security
       reports to the advisory form.
 - [ ] GitHub's Community Standards page shows every item complete (maintainer check
       after merge).
@@ -34,3 +34,19 @@ Repo settings are changed by the maintainer in GitHub, not in this PR:
 - Dependabot alerts on
 - Branch ruleset on `main`: require PRs and PR Checks, block force-pushes
 - Squash-only merges, and delete branches on merge
+
+The last three acceptance criteria depend on those settings, so they're checked
+after merge, not in this PR.
+
+- The release workflow's changelog job pushes `CHANGELOG.md` straight to `main` with
+  `GITHUB_TOKEN`, which a ruleset that requires PRs blocks. Rather than reworking the
+  job into a PR, the runbook now says to add the **GitHub Actions** app as a bypass
+  actor on the `main` ruleset. The release and image publish before that job, so a
+  missing bypass only skips the changelog commit.
+- `CODE_OF_CONDUCT.md` is Contributor Covenant 2.1, unmodified except for the
+  reporting contact, which points at the email on the maintainer's GitHub profile
+  rather than putting an address in the repo.
+- `SECURITY.md` supports only the latest release and the `main` image while the
+  project is pre-1.0.
+- The README's Development section links the three new files. The README rewrite
+  (#21) will move them into its footer.
