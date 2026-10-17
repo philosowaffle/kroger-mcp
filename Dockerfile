@@ -15,13 +15,15 @@ COPY . .
 # Declared after the module download so changing them keeps that layer cached.
 ARG VERSION=dev
 ARG COMMIT=unknown
-RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build \
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath \
       -ldflags="-s -w -X github.com/philosowaffle/kroger-cart/internal/server.Version=${VERSION} -X github.com/philosowaffle/kroger-cart/internal/server.Commit=${COMMIT}" \
       -o /out/kroger-mcp . \
     && mkdir -p /out/data
 
 # ── Runtime stage ─────────────────────────────────────────────────────────────
 FROM gcr.io/distroless/static-debian12:nonroot
+# The release workflow sets this too; repeated here so local builds carry it.
+LABEL org.opencontainers.image.licenses="GPL-3.0-only"
 WORKDIR /
 COPY --from=build /out/kroger-mcp /kroger-mcp
 # /data holds state.json (linked Kroger account tokens, preferred store). Owned

@@ -1,0 +1,34 @@
+# Weekly, grouped updates so pinned versions stay current without a PR per bump.
+version: 2
+updates:
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      gomod:
+        patterns: ["*"]
+    commit-message:
+      prefix: chore
+
+  # Workflows pin actions to commit SHAs; Dependabot bumps the SHA and the
+  # version comment together.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      github-actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: ci
+
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      docker:
+        patterns: ["*"]
+    commit-message:
+      prefix: chore
