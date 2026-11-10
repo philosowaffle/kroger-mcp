@@ -1349,3 +1349,57 @@ func TestSleepCtx(t *testing.T) {
 		t.Errorf("canceled sleep: %v", err)
 	}
 }
+
+// TestAPIErrorMessage_KeepsKrogerErrorCode: Kroger's own error code, inside
+// its "errors" envelope, survives redaction; a "code" anywhere else (an OAuth
+// authorization code) is still blanked.
+func TestAPIErrorMessage_KeepsKrogerErrorCode(t *testing.T) {
+	tests := []struct {
+		name, body, keep, drop string
+	}{
+		{"error object", `{"errors":{"timestamp":1794344119003,"code":"PRODUCT-5001","reason":"internal server error"}}`, `"code":"PRODUCT-5001"`, ""},
+		{"error list", `{"errors":[{"code":"LOCATION-2001","reason":"bad"}]}`, `"code":"LOCATION-2001"`, ""},
+		{"oauth code outside envelope", `{"code":"CODE-secret","errors":{"code":"AUTH-1","reason":"x"}}`, `"code":"AUTH-1"`, "CODE-secret"},
+		{"token inside envelope", `{"errors":{"code":"AUTH-1","access_token":"AT-secret"}}`, `"code":"AUTH-1"`, "AT-secret"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			msg := (&APIError{Status: 500, Body: tt.body}).Error()
+			if !strings.Contains(msg, tt.keep) {
+				t.Errorf("message lost %s: %s", tt.keep, msg)
+			}
+			if tt.drop != "" && strings.Contains(msg, tt.drop) {
+				t.Errorf("message leaks %s: %s", tt.drop, msg)
+			}
+		})
+	}
+}
+
+// TestAPIErrorMessage_NamesRequest: an API error says which request failed,
+// with credential-shaped query values blanked.
+func TestAPIErrorMessage_NamesRequest(t *testing.T) {
+	c, fake := newTestClient(t)
+	fake.FailNext("/products", 1, http.StatusInternalServerError, "")
+	_, err := c.SearchProducts(context.Background(), ProductQuery{Term: "milk", LocationID: "01400943", Limit: 5})
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) || apiErr.Status != http.StatusInternalServerError {
+		t.Fatalf("err = %v, want APIError 500", err)
+	}
+	msg := err.Error()
+	for _, want := range []string{"GET ", "/products?", "filter.term=milk", "filter.locationId=01400943", "status 500"} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("message %q does not mention %q", msg, want)
+		}
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "https://api.example/v1/x?code=CODE-secret&client_secret=CS-secret&filter.term=eggs", nil)
+	got := requestTarget(req)
+	for _, secret := range []string{"CODE-secret", "CS-secret"} {
+		if strings.Contains(got, secret) {
+			t.Errorf("target leaks %s: %s", secret, got)
+		}
+	}
+	if !strings.Contains(got, "filter.term=eggs") || !strings.HasPrefix(got, "/v1/x?") {
+		t.Errorf("target = %s", got)
+	}
+}
