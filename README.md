@@ -1,16 +1,92 @@
 # kroger-mcp
 
+[![Build](https://github.com/philosowaffle/kroger-mcp/actions/workflows/release.yml/badge.svg?branch=main)](https://github.com/philosowaffle/kroger-mcp/actions/workflows/release.yml)
+[![Release](https://img.shields.io/github/v/release/philosowaffle/kroger-mcp?sort=semver)](https://github.com/philosowaffle/kroger-mcp/releases)
 [![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue.svg)](LICENSE)
+[![Image](https://img.shields.io/badge/image-ghcr.io%2Fphilosowaffle%2Fkroger--mcp-2496ED?logo=docker&logoColor=white)](https://github.com/philosowaffle/kroger-mcp/pkgs/container/kroger-mcp)
+[![Go version](https://img.shields.io/github/go-mod/go-version/philosowaffle/kroger-mcp)](go.mod)
+[![Buy me a coffee](https://img.shields.io/badge/buy%20me%20a%20coffee-FFDD00?logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/philosowaffle)
+
+**Let Claude build your grocery cart at Kroger-family stores.** A self-hosted
+[MCP](https://modelcontextprotocol.io) server for the
+[Kroger Public API](https://developer.kroger.com): find stores, search products with
+price, promo, stock and aisle, and add items to your cart at King Soopers, Kroger, Ralphs,
+Fred Meyer, Fry's, Smith's and other Kroger banners.
 
 > **Unofficial.** kroger-mcp is not affiliated with or endorsed by The Kroger Co.
 > See [Disclaimer](#disclaimer).
 
-An [MCP](https://modelcontextprotocol.io) server that wraps the
-[Kroger Public API](https://developer.kroger.com), so Claude can help you shop at
-Kroger-family stores (King Soopers, Kroger, Ralphs, Fred Meyer, Fry's, Smith's,
-and others). Written in Go on the official
-[`go-sdk`](https://github.com/modelcontextprotocol/go-sdk), it serves
-**Streamable HTTP** so you can self-host it in Docker and reach it remotely.
+## What it looks like
+
+> **You:** Make the King Soopers near zipcode 12345 my store, then add a gallon of 2% milk,
+> a dozen large eggs and sourdough bread to my cart for pickup.
+>
+> **Claude:** *(calls `search_locations`, `set_preferred_location`, then `search_products`
+> for each item)* I saved the nearest King Soopers as your store and found Kroger 2% Milk (1 gal,
+> $3.49, aisle 12), Simple Truth Large Eggs (12 ct, $4.29, on sale) and Private Selection
+> Sourdough ($3.99). Add all three?
+>
+> **You:** Yes.
+>
+> **Claude:** *(calls `add_to_cart`)* Added. Open the King Soopers app or website to pick a
+> pickup time and check out.
+
+The example is illustrative; prices and products come live from Kroger for your store.
+
+## Quickstart
+
+You need Docker and a Kroger shopping account.
+
+1. **Create a Kroger developer app.** Sign up at <https://developer.kroger.com> (separate
+   from your shopping account), then **My Apps → Create App** with the **Product**,
+   **Cart**, **Profile** and **Locations** APIs. Add the redirect URI
+   `http://localhost:8080/kroger/callback` and copy the **Client ID** and **Client
+   Secret**.
+2. **Configure.** Download [`docker-compose.yml`](docker-compose.yml) and put a `.env`
+   next to it:
+
+   ```sh
+   KROGER_CLIENT_ID=your-client-id
+   KROGER_CLIENT_SECRET=your-client-secret
+   ```
+
+3. **Run it.**
+
+   ```sh
+   docker compose up -d     # pulls ghcr.io/philosowaffle/kroger-mcp:latest
+   ```
+
+4. **Connect Claude** on the same machine:
+
+   ```sh
+   claude mcp add --transport http kroger http://localhost:8080
+   ```
+
+5. **Link your account.** Ask Claude to "link my Kroger account", open the URL it gives
+   you, sign in with your **shopping** account and approve. Then ask it to find your
+   store and make it your default, and you're ready to shop.
+
+The sample compose file only listens on `127.0.0.1`, so the server is reachable from that
+machine alone. To use it from claude.ai, the desktop app or your phone, host it somewhere
+Claude can reach and turn on [MCP auth](docs/authentication.md#enabling-auth) first.
+
+> [!WARNING]
+> **Don't expose the server without MCP auth beyond localhost or a network you trust.**
+> With auth off, anyone who can reach the endpoint can add to your cart, or link their own
+> Kroger account in place of yours so your later adds land in their cart. The server
+> refuses to listen beyond loopback with auth off unless you opt in. See
+> [Running without auth](docs/authentication.md#running-without-auth).
+
+## What it can't do
+
+- **Read, change or remove cart items, or check out.** Kroger's public API can only *add*
+  to a cart. You finish on the store's website or app.
+- **See order history or past purchases.** The API doesn't expose them.
+- **Go past Kroger's quotas.** Each developer app gets a daily quota per API: about
+  10,000 product calls, 1,600 per location endpoint, and 5,000 each for cart and identity
+  (check the [developer portal](https://developer.kroger.com) for current numbers).
+- **Run over stdio.** It serves Streamable HTTP only, so it runs as a service that Claude
+  connects to.
 
 ## Tools
 
@@ -28,162 +104,26 @@ and others). Written in Go on the official
 | `add_to_cart`            |          ✓           | Add items to your cart by UPC (PICKUP or DELIVERY).                 |
 
 Product and store tools take `detail`. The default, `lite`, is a compact view for
-shopping. `full` returns Kroger's complete record: images, every item and price
-field, shelf position, dimensions and nutrition where Kroger provides it for
-products; hours, departments and geolocation for stores.
+shopping. `full` returns Kroger's complete record: images, every item and price field,
+shelf position, dimensions and nutrition where Kroger provides it for products; hours,
+departments and geolocation for stores.
 
-The Kroger public API can **add** to a cart, but it cannot read the cart, remove
-items or check out. You finish on the store's website or app.
-
-### Rate limits
-
-Kroger gives each developer app a daily quota per API: about 10,000 product
-calls, 1,600 per location endpoint, and 5,000 each for cart and identity (check
-the [developer portal](https://developer.kroger.com) for current numbers). The
-5-minute product cache saves calls when Claude asks for details on search
-results. When Kroger answers 429, read-only lookups retry once if Kroger asks
-for a wait of 5 seconds or less. Cart adds are never retried, so items can't be
-added twice. Otherwise the tool tells Claude the quota is used up and to try
-again later.
-
-## Two kinds of auth
-
-There are two separate auth layers, and it helps to keep them apart:
-
-1. **Who can use this MCP server** (Claude → kroger-mcp). This is optional OAuth
-   protection of the MCP endpoint, delegated to your own identity provider. It
-   uses the same setup as forge-mcp and is described [below](#authentication).
-2. **Whose Kroger account it acts on** (kroger-mcp → Kroger). This uses Kroger's
-   own OAuth. Product and store lookups use an app token from your Kroger
-   developer credentials. The cart needs your shopping account, which you link
-   once in a browser (see [Linking your Kroger account](#linking-your-kroger-account)).
-
-## Setup
-
-### 1. Create a Kroger developer app
-
-1. Sign up at <https://developer.kroger.com>. This developer account is separate
-   from your shopping account.
-2. **My Apps → Create App**. Give it the **Product**, **Cart**, **Profile** and
-   **Locations** APIs.
-3. Add a **Redirect URI**: the public URL of this server plus `/kroger/callback`.
-   For example `https://kroger-mcp.example.com/kroger/callback`, or
-   `http://localhost:8080/kroger/callback` for a local run. It has to match
-   `KROGER_REDIRECT_URI` exactly.
-4. Copy the **Client ID** and **Client Secret**.
-
-### 2. Run it
-
-```sh
-export KROGER_CLIENT_ID=...
-export KROGER_CLIENT_SECRET=...
-export KROGER_REDIRECT_URI=http://localhost:8080/kroger/callback
-
-docker compose up -d     # pulls ghcr.io/philosowaffle/kroger-mcp:latest
-```
-
-Compose also reads these from a `.env` file next to `docker-compose.yml`.
-State lives in the `kroger-data` volume, mounted at `/data`. To run from
-source instead, uncomment `build: .` in `docker-compose.yml` and use
-`docker compose up -d --build`, or run `go run .`.
-
-Images are published for `linux/amd64` and `linux/arm64`. Releases are tagged
-`latest`, `X.Y.Z` and `X.Y`; the tip of `main` is tagged `main`.
-
-### 3. Connect Claude
-
-```sh
-claude mcp add --transport http kroger http://<host>:8080
-```
-
-For claude.ai or the desktop app, add a custom connector pointing at the same URL.
-
-### 4. Link your Kroger account
-
-Ask Claude something like "link my Kroger account". It calls `kroger_login` and
-gives you a URL. Open it, sign in with your **shopping** account and approve.
-Kroger redirects to `/kroger/callback`, and the server stores the tokens in
-`/data/state.json` and refreshes them automatically. Links last about six
-months; after that, `add_to_cart` asks you to link again.
-
-The callback is reachable without MCP auth, because a browser redirect can't
-carry a bearer token. It only accepts the single-use `state` from a
-`kroger_login` URL issued in the last 15 minutes, so nobody can use it to link
-an account without first getting a login URL through an authenticated MCP call.
-
-Then ask Claude to find your store ("find the King Soopers near 80218 and make
-it my default"), and you're ready to shop.
+The 5-minute product cache saves quota when Claude asks for details on search results.
+When Kroger answers 429, read-only lookups retry once if Kroger asks for a wait of 5
+seconds or less. Cart adds are never retried, so items can't be added twice. Otherwise
+the tool tells Claude the quota is used up and to try again later.
 
 ## Authentication
 
-Authentication is off by default. Set `KROGER_MCP_OIDC_ISSUER` to turn
-kroger-mcp into an OAuth 2.0 **protected resource** (per the MCP authorization
-spec, RFC 9728).
+There are two separate auth layers: optional OAuth on the MCP endpoint (who can use this
+server), and Kroger's own OAuth (whose Kroger account it acts on). MCP auth is off by
+default. Set `KROGER_MCP_OIDC_ISSUER` to make kroger-mcp an OAuth 2.0 protected resource
+that validates JWT access tokens from your own identity provider (e.g. Authelia).
 
-kroger-mcp does **not** run any OAuth flows for MCP clients. It delegates
-login, consent and token issuance to an external authorization server (e.g.
-Authelia) and only:
+[docs/authentication.md](docs/authentication.md) covers both layers, the risks of running
+without auth, identity provider requirements and how account linking works.
 
-1. serves protected-resource metadata at `/.well-known/oauth-protected-resource`,
-2. answers unauthenticated requests with `401` + `WWW-Authenticate`, and
-3. validates the bearer JWT access token (signature via the issuer's JWKS, plus
-   `iss` / `aud` / `exp`, and a `typ` header of `at+jwt` per RFC 9068) on every
-   request. The `typ` check stops an ID token for the same audience from being
-   used as an access token.
-
-### Running without auth
-
-Without auth, **anyone who can reach the MCP endpoint can use your linked Kroger
-account**: add items to your cart, or call `kroger_login`, sign in with their
-own Kroger account and replace yours, so your later cart adds land in their
-cart. The single-use login state stops a drive-by callback, but not someone who
-can call the tool.
-
-So with auth off the server only listens on loopback by default:
-
-- If `KROGER_MCP_ADDR` isn't a loopback address (`127.0.0.1:8080`,
-  `localhost:8080`, `[::1]:8080`), it **refuses to start** unless
-  `KROGER_MCP_ALLOW_UNAUTHENTICATED=true` is set. Set that only on a network you
-  trust (a home LAN, a VPN, or behind a reverse proxy that does its own auth).
-- The sample `docker-compose.yml` publishes the port on `127.0.0.1` only. It sets
-  `KROGER_MCP_ALLOW_UNAUTHENTICATED=true` because the server must listen on all
-  interfaces *inside* the container; the loopback-only publish is what keeps it
-  private.
-- `kroger_login` warns when an account is already linked, and the server logs
-  `kroger: linked account replaced` at info with both profile IDs when a link
-  swaps accounts.
-
-### Enabling auth
-
-```sh
-export KROGER_MCP_OIDC_ISSUER=https://auth.example.com          # OIDC issuer (discovery base)
-export KROGER_MCP_OIDC_RESOURCE=https://kroger-mcp.example.com  # this server's resource id == expected audience
-export KROGER_MCP_OIDC_SCOPES="mcp"                             # optional, space-separated
-```
-
-The issuer must be reachable at startup, because kroger-mcp runs OIDC discovery then.
-
-### Authorization server requirements (Authelia)
-
-- **JWT access tokens.** Configure the client with
-  `access_token_signed_response_alg: RS256`. kroger-mcp validates JWTs, not
-  Authelia's default opaque tokens.
-- **Token type.** Access tokens must carry the JOSE header `typ: at+jwt`. If
-  your authorization server omits it, set `KROGER_MCP_OIDC_REQUIRE_AT_JWT=false`
-  (the server logs `jwt typ "..." is not at+jwt` when it rejects one).
-- **Audience.** The access token's `aud` must contain the value of
-  `KROGER_MCP_OIDC_RESOURCE` (drive this via RFC 8707 resource indicators or the
-  client's audience config).
-- **Pre-registered client.** Authelia has no Dynamic Client Registration, so
-  register a confidential client (authorization code + PKCE `S256`) for Claude.
-
-### Connecting Claude
-
-Claude discovers the auth server from the metadata document, then runs the OAuth
-flow. Because Authelia lacks DCR, enter the pre-registered **client ID / secret**
-in the connector's **Advanced settings**.
-
-## Config
+## Configuration
 
 | Env var                    | Default                                 | Purpose                                                   |
 | -------------------------- | --------------------------------------- | --------------------------------------------------------- |
@@ -193,7 +133,7 @@ in the connector's **Advanced settings**.
 | `KROGER_LOCATION_ID`       | (unset)                                 | Default store when none is saved or passed.               |
 | `KROGER_MODALITY`          | `PICKUP`                                | Default cart modality: `PICKUP` or `DELIVERY`.            |
 | `KROGER_MCP_ADDR`          | `127.0.0.1:8080` (`:8080` in the image) | Listen address. Without auth, non-loopback needs the opt-in below. |
-| `KROGER_MCP_ALLOW_UNAUTHENTICATED` | `false`                        | Allow listening beyond loopback with auth off. See [Running without auth](#running-without-auth). |
+| `KROGER_MCP_ALLOW_UNAUTHENTICATED` | `false`                        | Allow listening beyond loopback with auth off. See [Running without auth](docs/authentication.md#running-without-auth). |
 | `KROGER_API_BASE_URL`      | `https://api.kroger.com/v1`             | Kroger API root. `https://api-ce.kroger.com/v1` is the certification environment (no shopper accounts, so no cart). |
 | `KROGER_MCP_DATA_DIR`      | `data` (`/data` in the image)           | Where `state.json` is kept.                               |
 | `KROGER_MCP_LOG_LEVEL`     | `info`                                  | `trace`/`debug`/`info`/`warn`/`error`. Request logs are at `trace`. |
@@ -202,17 +142,15 @@ in the connector's **Advanced settings**.
 | `KROGER_MCP_OIDC_SCOPES`   | (unset)                                 | Space-separated scopes required on requests. Read from the token's `scope` or `scp` claim. |
 | `KROGER_MCP_OIDC_REQUIRE_AT_JWT` | `true`                            | Reject tokens whose `typ` isn't `at+jwt`. Set `false` only if your IdP omits it. |
 
-## Releasing
+When you host it somewhere other than your own machine, register that public URL plus
+`/kroger/callback` as a redirect URI on the Kroger app and set `KROGER_REDIRECT_URI` to
+match it exactly.
 
-- **Release:** go to **Actions → Release → Run workflow** on `main`, enter a
-  version like `v0.1.0`, and run it. It creates the tag, pushes the image
-  (`X.Y.Z`, `X.Y`, `latest`), publishes a GitHub release with binaries and
-  git-cliff notes, and commits `CHANGELOG.md` to `main`. Pushing a `vX.Y.Z` tag
-  yourself does the same. `kroger-mcp -version` reports the tag it was built
-  from.
-- **Every merge to `main`** publishes `ghcr.io/philosowaffle/kroger-mcp:main`
-  (plus `sha-<commit>`) for testing unreleased changes. No GitHub release is
-  created.
+Images are published for `linux/amd64` and `linux/arm64`. Releases are tagged `latest`,
+`X.Y.Z` and `X.Y`; the tip of `main` is tagged `main`. Release binaries are on the
+[releases page](https://github.com/philosowaffle/kroger-mcp/releases). To build from
+source, uncomment `build: .` in `docker-compose.yml` and run `docker compose up -d
+--build`, or run `go run .`.
 
 ## Development
 
@@ -225,25 +163,35 @@ task run               # go run . (loads .env)
 ```
 
 See [`docs/architecture.md`](docs/architecture.md) for how it fits together and
-[`docs/runbook.md`](docs/runbook.md) for operations and troubleshooting.
-
+[`docs/runbook.md`](docs/runbook.md) for operations, releasing and troubleshooting.
 Contributions are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md) and the
-[Code of Conduct](CODE_OF_CONDUCT.md). Report vulnerabilities privately, as
-described in [SECURITY.md](SECURITY.md).
+[Code of Conduct](CODE_OF_CONDUCT.md).
+
+## Built with AI assistance
+
+kroger-mcp was built with substantial help from an AI coding assistant (Claude Code). The
+maintainer reviews every change before it merges, and the server is covered by end-to-end
+tool tests and integration tests against Kroger's certification API.
+
+## Support
+
+If kroger-mcp saves you time, you can
+[buy me a coffee](https://buymeacoffee.com/philosowaffle).
 
 ## Disclaimer
 
-kroger-mcp is an independent, unofficial project. It is not affiliated with,
-endorsed by, or sponsored by The Kroger Co. or any of its banners (King Soopers,
-Ralphs, Fred Meyer, Fry's, Smith's, and others). "Kroger" and the banner names are
-trademarks of their respective owners and are used here only to describe what the
-software works with.
+kroger-mcp is an independent, unofficial project. It is not affiliated with, endorsed by,
+or sponsored by The Kroger Co. or any of its banners (King Soopers, Ralphs, Fred Meyer,
+Fry's, Smith's, and others). "Kroger" and the banner names are trademarks of their
+respective owners and are used here only to describe what the software works with.
 
-kroger-mcp has no Kroger credentials of its own. Each self-hoster registers their own
-app on the [Kroger Developer portal](https://developer.kroger.com) and agrees to
-Kroger's developer terms, which govern every API call the server makes on their behalf.
+kroger-mcp has no Kroger credentials of its own. Each self-hoster registers their own app
+on the [Kroger Developer portal](https://developer.kroger.com) and agrees to Kroger's
+developer terms, which govern every API call the server makes on their behalf.
 
 ## License
 
-[GPL-3.0](LICENSE). You may use, modify and redistribute kroger-mcp under the terms of
-the GNU General Public License v3.0.
+[GPL-3.0](LICENSE). You may use, modify and redistribute kroger-mcp under the terms of the
+GNU General Public License v3.0.
+
+Report vulnerabilities privately, as described in [SECURITY.md](SECURITY.md).
