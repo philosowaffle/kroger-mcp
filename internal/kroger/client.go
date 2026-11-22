@@ -42,6 +42,10 @@ const maxRetryWait = 5 * time.Second
 type APIError struct {
 	Status int
 	Body   string
+	// Method and Target name the request that failed: its method and its
+	// path with a credential-free query. Both are empty when unknown.
+	Method string
+	Target string
 	// RetryAfter is the wait the response's Retry-After header asked for, or
 	// zero when it had none.
 	RetryAfter time.Duration
@@ -55,20 +59,67 @@ func (e *APIError) Error() string {
 		}
 		return msg + ". Retrying right away will fail again."
 	}
-	return fmt.Sprintf("kroger api: status %d: %s", e.Status, truncate(redactSecrets(e.Body), maxErrorBody))
+	req := ""
+	if e.Method != "" || e.Target != "" {
+		req = strings.TrimSpace(e.Method+" "+e.Target) + ": "
+	}
+	return fmt.Sprintf("kroger api: %sstatus %d: %s", req, e.Status, truncate(redactSecrets(e.Body), maxErrorBody))
 }
 
 // maxErrorBody caps how much of an error response is echoed back to Claude.
 const maxErrorBody = 500
 
 // secretField matches a JSON string field that could hold a credential.
-var secretField = regexp.MustCompile(`"(access_token|refresh_token|id_token|client_secret|code_verifier|code)"\s*:\s*"[^"]*"`)
+var secretField = regexp.MustCompile(`"(access_token|refresh_token|id_token|client_secret|code_verifier)"\s*:\s*"[^"]*"`)
+
+// codeField matches a JSON "code" string field, which may be an OAuth
+// authorization code.
+var codeField = regexp.MustCompile(`"code"\s*:\s*"[^"]*"`)
+
+// errorEnvelope matches Kroger's error object or list, e.g.
+// {"errors":{"timestamp":…,"code":"PRODUCT-2016","reason":"…"}}. Its "code"
+// is Kroger's error code, not a credential, and is the main clue to a failure.
+var errorEnvelope = regexp.MustCompile(`"errors"\s*:\s*(\{[^{}]*\}|\[[^\[\]]*\])`)
 
 // redactSecrets blanks credential-shaped JSON fields in an error body before
 // it reaches Claude or the logs. Kroger's error bodies aren't expected to
-// carry any, but nothing guarantees it.
+// carry any, but nothing guarantees it. A "code" inside Kroger's "errors"
+// envelope is kept; any other "code" is blanked.
 func redactSecrets(body string) string {
-	return secretField.ReplaceAllString(body, `"$1":"[redacted]"`)
+	body = secretField.ReplaceAllString(body, `"$1":"[redacted]"`)
+	var b strings.Builder
+	last := 0
+	for _, m := range errorEnvelope.FindAllStringIndex(body, -1) {
+		b.WriteString(codeField.ReplaceAllString(body[last:m[0]], `"code":"[redacted]"`))
+		b.WriteString(body[m[0]:m[1]])
+		last = m[1]
+	}
+	b.WriteString(codeField.ReplaceAllString(body[last:], `"code":"[redacted]"`))
+	return b.String()
+}
+
+// secretParams are query parameters that can carry a credential.
+var secretParams = map[string]bool{
+	"access_token": true, "refresh_token": true, "id_token": true,
+	"client_secret": true, "code": true, "code_verifier": true, "state": true,
+}
+
+// requestTarget is req's path and query for error messages, with the value
+// of any credential-shaped query parameter blanked.
+func requestTarget(req *http.Request) string {
+	if req == nil || req.URL == nil {
+		return ""
+	}
+	q := req.URL.Query()
+	for k := range q {
+		if secretParams[strings.ToLower(k)] {
+			q[k] = []string{"[redacted]"}
+		}
+	}
+	if len(q) == 0 {
+		return req.URL.Path
+	}
+	return req.URL.Path + "?" + q.Encode()
 }
 
 // Is reports a 429 as ErrRateLimited.
@@ -332,6 +383,8 @@ func (c *Client) send(req *http.Request, out any) error {
 		apiErr := &APIError{
 			Status:     resp.StatusCode,
 			Body:       strings.TrimSpace(string(body)),
+			Method:     req.Method,
+			Target:     requestTarget(req),
 			RetryAfter: parseRetryAfter(resp.Header.Get("Retry-After"), c.now()),
 		}
 		if resp.StatusCode == http.StatusTooManyRequests {

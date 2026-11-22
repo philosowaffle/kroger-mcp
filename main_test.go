@@ -225,3 +225,35 @@ func TestRun_RefusesUnauthenticatedExposure(t *testing.T) {
 		t.Fatalf("run(:0) = %v, want exposure refusal", err)
 	}
 }
+
+// TestToolCallWithProtocolVersionMeta covers #48: Claude's client sends
+// _meta["io.modelcontextprotocol/protocolVersion"] on calls under the
+// 2025-11-25 protocol. go-sdk rejects such calls on a stateful handler with
+// "protocol version \"2025-11-25\" is not supported by this server".
+func TestToolCallWithProtocolVersionMeta(t *testing.T) {
+	t.Setenv("KROGER_MCP_OIDC_ISSUER", "")
+	h, err := newHandler(context.Background(), newKrogerClient(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	post := func(body, sessionID string) (*httptest.ResponseRecorder, string) {
+		t.Helper()
+		req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Accept", "application/json, text/event-stream")
+		req.Header.Set("Mcp-Protocol-Version", "2025-11-25")
+		if sessionID != "" {
+			req.Header.Set("Mcp-Session-Id", sessionID)
+		}
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		return rec, rec.Body.String()
+	}
+	rec, _ := post(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"test","version":"1"}}}`, "")
+	sid := rec.Header().Get("Mcp-Session-Id")
+	post(`{"jsonrpc":"2.0","method":"notifications/initialized"}`, sid)
+	rec, body := post(`{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2025-11-25"}}}`, sid)
+	if rec.Code != http.StatusOK || strings.Contains(body, `"error"`) || !strings.Contains(body, `"tools"`) {
+		t.Fatalf("tools/list with protocolVersion _meta: status %d, body %s", rec.Code, body)
+	}
+}
