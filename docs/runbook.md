@@ -113,7 +113,8 @@ The first push creates the GHCR package as **private**. Either make it public
 `docker login ghcr.io` on the host with a PAT that has `read:packages`.
 
 If `main` is protected, the changelog job's push fails. The release and image
-are unaffected. Allow `github-actions[bot]` to bypass the protection, or drop
+are unaffected. On the `main` ruleset (Settings → Rules → Rulesets), add the
+**GitHub Actions** app to the bypass list so that push still lands, or drop
 that job.
 
 ## CI and dependency updates

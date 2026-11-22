@@ -227,6 +227,10 @@ task run               # go run . (loads .env)
 See [`docs/architecture.md`](docs/architecture.md) for how it fits together and
 [`docs/runbook.md`](docs/runbook.md) for operations and troubleshooting.
 
+Contributions are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md) and the
+[Code of Conduct](CODE_OF_CONDUCT.md). Report vulnerabilities privately, as
+described in [SECURITY.md](SECURITY.md).
+
 ## Disclaimer
 
 kroger-mcp is an independent, unofficial project. It is not affiliated with,
