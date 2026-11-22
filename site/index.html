@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>kroger-mcp: let Claude build your Kroger grocery cart</title>
+  <meta name="description" content="A self-hosted MCP server for the Kroger Public API. Find stores, search products with price, stock and aisle, and add items to your cart.">
+  <meta name="color-scheme" content="light dark">
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="kroger-mcp">
+  <meta property="og:title" content="kroger-mcp: let Claude build your Kroger grocery cart">
+  <meta property="og:description" content="A self-hosted MCP server for the Kroger Public API. Find stores, search products with price, stock and aisle, and add items to your cart.">
+  <meta property="og:url" content="https://philosowaffle.github.io/kroger-mcp/">
+  <meta property="og:image" content="https://philosowaffle.github.io/kroger-mcp/og.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+</head>
+<body>
+  <header class="site">
+    <div class="wrap">
+      <a class="brand" href="./">🛒 kroger-mcp</a>
+      <nav>
+        <a href="./" aria-current="page">Home</a>
+        <a href="setup.html">Setup</a>
+        <a href="security.html">Security</a>
+        <a href="https://github.com/philosowaffle/kroger-mcp">GitHub</a>
+      </nav>
+    </div>
+  </header>
+  <main>
+    <div class="wrap">
+      <section class="hero">
+        <h1>Let Claude build your grocery cart.</h1>
+        <p class="lede">kroger-mcp is a self-hosted <a href="https://modelcontextprotocol.io">MCP</a> server for the Kroger Public API. Claude finds your store, searches products with price, promo, stock and aisle, and adds what you pick to your cart at King Soopers, Kroger, Ralphs, Fred Meyer, Fry's, Smith's and other Kroger banners.</p>
+        <div class="buttons">
+          <a class="button primary" href="setup.html">Set it up</a>
+          <a class="button secondary" href="https://github.com/philosowaffle/kroger-mcp">View on GitHub</a>
+        </div>
+      </section>
+
+      <h2>What it looks like</h2>
+      <div class="chat">
+        <p><span class="who">You:</span> Make the King Soopers near 80218 my store, then add a gallon of 2% milk, a dozen large eggs and sourdough bread to my cart for pickup.</p>
+        <p><span class="who">Claude:</span> <span class="tool">(searches stores, saves your store, searches each item)</span> I saved the nearest King Soopers as your store and found Kroger 2% Milk (1 gal, $3.49, aisle 12), Simple Truth Large Eggs (12 ct, $4.29, on sale) and Private Selection Sourdough ($3.99). Add all three?</p>
+        <p><span class="who">You:</span> Yes.</p>
+        <p><span class="who">Claude:</span> <span class="tool">(adds to cart)</span> Added. Open the King Soopers app or website to pick a pickup time and check out.</p>
+      </div>
+      <p class="note">An illustrative example. Prices and products come live from Kroger for your store.</p>
+
+      <h2>What you get</h2>
+      <div class="grid">
+        <div class="card"><h3>Stores</h3><p>Find stores by zip or coordinates, filter by chain and department, and save a default.</p></div>
+        <div class="card"><h3>Products</h3><p>Search by term or brand. Scoped to your store, results add price, promos, stock and aisle.</p></div>
+        <div class="card"><h3>Cart</h3><p>Add items for pickup or delivery once you link your Kroger shopping account.</p></div>
+        <div class="card"><h3>Self-hosted</h3><p>A Go server in Docker, over Streamable HTTP, with optional OAuth on the endpoint.</p></div>
+      </div>
+
+      <h2>Tools</h2>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Tool</th><th>What it does</th></tr></thead>
+          <tbody>
+            <tr><td><code>search_locations</code></td><td>Find stores by zip code, coordinates or id.</td></tr>
+            <tr><td><code>get_location</code></td><td>Get one store.</td></tr>
+            <tr><td><code>set_preferred_location</code></td><td>Save a default store.</td></tr>
+            <tr><td><code>list_chains</code></td><td>List chains, or look one up.</td></tr>
+            <tr><td><code>list_departments</code></td><td>List departments, or look one up.</td></tr>
+            <tr><td><code>search_products</code></td><td>Search by term, brand or product ids.</td></tr>
+            <tr><td><code>get_product</code></td><td>Get one product by product id or UPC.</td></tr>
+            <tr><td><code>kroger_login</code></td><td>Get a single-use URL to link your shopping account.</td></tr>
+            <tr><td><code>kroger_auth_status</code></td><td>Check the linked account and default store.</td></tr>
+            <tr><td><code>add_to_cart</code></td><td>Add items to your cart by UPC.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout">
+        <strong>It can't check out.</strong> Kroger's public API can only add to a cart. It can't read the cart, remove items, see past orders or place an order, so you finish on the store's website or app.
+      </div>
+    </div>
+  </main>
+  <footer class="site">
+    <div class="wrap">
+      <p class="links">
+        <a href="https://github.com/philosowaffle/kroger-mcp">GitHub</a>
+        <a href="https://buymeacoffee.com/philosowaffle">Buy me a coffee</a>
+        <a href="https://github.com/philosowaffle/kroger-mcp/blob/main/SECURITY.md">Report a vulnerability</a>
+      </p>
+      <p>Built with substantial help from an AI coding assistant (Claude Code). The maintainer reviews every change, and the server is covered by end-to-end and integration tests.</p>
+      <p>kroger-mcp is an independent, unofficial project. It is not affiliated with, endorsed by, or sponsored by The Kroger Co. or any of its banners. &ldquo;Kroger&rdquo; and the banner names are trademarks of their respective owners, used only to describe what the software works with.</p>
+      <p>Licensed under <a href="https://github.com/philosowaffle/kroger-mcp/blob/main/LICENSE">GPL-3.0</a>.</p>
+    </div>
+  </footer>
+</body>
+</html>
