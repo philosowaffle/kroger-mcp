@@ -96,8 +96,8 @@ To verify a download:
 
 ```sh
 sha256sum -c SHA256SUMS --ignore-missing
-gh attestation verify kroger-mcp-linux-amd64 --repo philosowaffle/kroger-cart
-gh attestation verify oci://ghcr.io/philosowaffle/kroger-mcp:vX.Y.Z --repo philosowaffle/kroger-cart
+gh attestation verify kroger-mcp-linux-amd64 --repo philosowaffle/kroger-mcp
+gh attestation verify oci://ghcr.io/philosowaffle/kroger-mcp:vX.Y.Z --repo philosowaffle/kroger-mcp
 ```
 
 Release builds stamp the tag and commit into the binary (`-ldflags -X`), so

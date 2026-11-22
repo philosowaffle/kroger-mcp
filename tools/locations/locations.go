@@ -8,7 +8,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/philosowaffle/kroger-cart/internal/kroger"
+	"github.com/philosowaffle/kroger-mcp/internal/kroger"
 )
 
 const detailDoc = `"lite" (default): id, chain, name, address, phone. "full": Kroger's complete record, adding store hours, departments (with their own hours and phone numbers), geolocation, and store and division numbers`

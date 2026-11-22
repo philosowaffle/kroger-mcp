@@ -17,7 +17,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/philosowaffle/kroger-cart/internal/kroger/krogertest"
+	"github.com/philosowaffle/kroger-mcp/internal/kroger/krogertest"
 )
 
 // newTestClient returns a client wired to a fresh fake Kroger API with its

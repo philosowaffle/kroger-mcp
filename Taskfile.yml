@@ -1,7 +1,7 @@
 version: "3"
 
 vars:
-  PKG: github.com/philosowaffle/kroger-cart/internal/server
+  PKG: github.com/philosowaffle/kroger-mcp/internal/server
   VERSION:
     sh: git describe --tags --always --dirty 2>/dev/null || echo dev
   COMMIT:

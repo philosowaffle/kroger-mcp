@@ -179,7 +179,7 @@ jobs:
           GOFLAGS: -trimpath
         run: |
           mkdir -p dist
-          pkg=github.com/philosowaffle/kroger-cart/internal/server
+          pkg=github.com/philosowaffle/kroger-mcp/internal/server
           ldflags="-s -w -X $pkg.Version=$VERSION -X $pkg.Commit=$(git rev-parse --short HEAD)"
           GOOS=linux   GOARCH=amd64 go build -ldflags "$ldflags" -o dist/kroger-mcp-linux-amd64   .
           GOOS=linux   GOARCH=arm64 go build -ldflags "$ldflags" -o dist/kroger-mcp-linux-arm64   .
