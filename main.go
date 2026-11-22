@@ -28,10 +28,6 @@ import (
 	"github.com/philosowaffle/kroger-cart/internal/server"
 )
 
-// sessionTimeout closes MCP sessions idle for this long. Clients start a new
-// session when an old one is gone, so this only bounds abandoned ones.
-const sessionTimeout = time.Hour
-
 // listenAddr defaults to loopback so a bare local run without auth is
 // private. The container image sets KROGER_MCP_ADDR=:8080.
 func listenAddr() string {
@@ -168,7 +164,13 @@ func newHandler(ctx context.Context, kc *kroger.Client) (http.Handler, error) {
 	srv := server.New(kc)
 	var mcpHandler http.Handler = mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server {
 		return srv
-	}, &mcp.StreamableHTTPOptions{SessionTimeout: sessionTimeout})
+	}, &mcp.StreamableHTTPOptions{
+		// Stateless: the tools keep no per-session state and never call back
+		// to the client. go-sdk v1.8.0 rejects, on stateful servers, any call
+		// whose _meta carries io.modelcontextprotocol/protocolVersion (SEP-2575),
+		// even at 2025-11-25, which Claude's client now sends on every call.
+		Stateless: true,
+	})
 
 	mux := http.NewServeMux()
 	mux.HandleFunc(health.Path, health.Handler)

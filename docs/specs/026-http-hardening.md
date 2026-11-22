@@ -29,7 +29,9 @@ echoed from the callback.
   auth middleware so a cross-site request gets 403 before any token handling. It
   only acts on browser signals (`Sec-Fetch-Site`, `Origin`), so Claude Code and
   claude.ai's connector backend are unaffected. Test: `TestCrossOriginRejected`.
-- `SessionTimeout` is one hour. Clients re-initialize when a session is gone.
+- `SessionTimeout` was one hour. Superseded by #48: the handler is now stateless, so
+  there are no MCP sessions to expire (go-sdk rejected calls carrying the
+  protocolVersion `_meta` key on stateful servers).
 - `ReadTimeout` and `WriteTimeout` stay unset on purpose: both cut off long-lived SSE
   streams. The SDK already caps request bodies at 4 MiB.
 - At most 32 pending logins; when full, the one closest to expiry is evicted. Test:
