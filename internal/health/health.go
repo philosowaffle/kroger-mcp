@@ -1,5 +1,5 @@
 // Package health serves the /healthz liveness probe and provides the client
-// the container HEALTHCHECK uses to probe it (the distroless image has no
+// the container HEALTHCHECK uses to probe it (a distroless image has no
 // shell or curl, so the binary checks itself).
 package health
 

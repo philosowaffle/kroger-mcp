@@ -19,16 +19,23 @@ import (
 
 const (
 	testIssuer   = "https://auth.example.com"
-	testResource = "https://kroger-mcp.example.com"
+	testResource = "https://example-mcp.example.com"
+)
+
+const (
+	testName   = "example-mcp"
+	testPrefix = "EXAMPLE_MCP"
 )
 
 func TestConfigFromEnv(t *testing.T) {
-	t.Setenv("KROGER_MCP_OIDC_ISSUER", " https://auth.example.com ")
-	t.Setenv("KROGER_MCP_OIDC_RESOURCE", "https://kroger-mcp.example.com")
-	t.Setenv("KROGER_MCP_OIDC_SCOPES", "  mcp  profile ")
+	t.Setenv("EXAMPLE_MCP_OIDC_ISSUER", " https://auth.example.com ")
+	t.Setenv("EXAMPLE_MCP_OIDC_RESOURCE", testResource)
+	t.Setenv("EXAMPLE_MCP_OIDC_SCOPES", "  mcp  profile ")
+	// Another server's variables must not leak in.
+	t.Setenv("OTHER_MCP_OIDC_ISSUER", "https://other.example.com")
 
-	got := ConfigFromEnv()
-	want := Config{Issuer: testIssuer, Resource: testResource, Scopes: []string{"mcp", "profile"}, RequireATJWT: true}
+	got := ConfigFromEnv(testName, testPrefix)
+	want := Config{Name: testName, EnvPrefix: testPrefix, Issuer: testIssuer, Resource: testResource, Scopes: []string{"mcp", "profile"}, RequireATJWT: true}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("got %+v, want %+v", got, want)
 	}
@@ -37,21 +44,34 @@ func TestConfigFromEnv(t *testing.T) {
 func TestConfigFromEnv_RequireATJWT(t *testing.T) {
 	//nolint:gocritic // mapKey: " FALSE " checks that surrounding whitespace is trimmed.
 	for v, want := range map[string]bool{"": true, "true": true, "yes": true, "false": false, " FALSE ": false, "0": false, "no": false, "off": false} {
-		t.Setenv("KROGER_MCP_OIDC_REQUIRE_AT_JWT", v)
-		if got := ConfigFromEnv().RequireATJWT; got != want {
-			t.Errorf("KROGER_MCP_OIDC_REQUIRE_AT_JWT=%q: RequireATJWT = %v, want %v", v, got, want)
+		t.Setenv("EXAMPLE_MCP_OIDC_REQUIRE_AT_JWT", v)
+		if got := ConfigFromEnv(testName, testPrefix).RequireATJWT; got != want {
+			t.Errorf("EXAMPLE_MCP_OIDC_REQUIRE_AT_JWT=%q: RequireATJWT = %v, want %v", v, got, want)
 		}
 	}
 }
 
 func TestEnabled(t *testing.T) {
-	t.Setenv("KROGER_MCP_OIDC_ISSUER", "")
-	if Enabled() {
+	t.Setenv("EXAMPLE_MCP_OIDC_ISSUER", "")
+	if ConfigFromEnv(testName, testPrefix).Enabled() {
 		t.Error("enabled with no issuer")
 	}
-	t.Setenv("KROGER_MCP_OIDC_ISSUER", testIssuer)
-	if !Enabled() {
+	t.Setenv("EXAMPLE_MCP_OIDC_ISSUER", testIssuer)
+	if !ConfigFromEnv(testName, testPrefix).Enabled() {
 		t.Error("disabled with issuer set")
+	}
+}
+
+// TestErrorsNameThePrefixedVariables: operators see their own server's
+// variable names, not a generic one.
+func TestErrorsNameThePrefixedVariables(t *testing.T) {
+	err := (Config{EnvPrefix: testPrefix, Issuer: testIssuer}).validate()
+	if err == nil || !strings.Contains(err.Error(), "EXAMPLE_MCP_OIDC_RESOURCE") {
+		t.Errorf("missing resource: err = %v", err)
+	}
+	err = checkAccessTokenType(base64.RawURLEncoding.EncodeToString([]byte(`{"typ":"JWT"}`))+".e30.sig", Config{EnvPrefix: testPrefix}.env("REQUIRE_AT_JWT"))
+	if err == nil || !strings.Contains(err.Error(), "EXAMPLE_MCP_OIDC_REQUIRE_AT_JWT=false") {
+		t.Errorf("ID token: err = %v", err)
 	}
 }
 
@@ -228,7 +248,7 @@ func TestMiddleware_AccessTokenType(t *testing.T) {
 }
 
 func TestMetadataHandler(t *testing.T) {
-	a := newAuthenticator(Config{Issuer: testIssuer, Resource: testResource, Scopes: []string{"mcp"}}, nil)
+	a := newAuthenticator(Config{Name: testName, Issuer: testIssuer, Resource: testResource, Scopes: []string{"mcp"}}, nil)
 	rec := httptest.NewRecorder()
 	a.MetadataHandler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, MetadataPath, nil))
 	if rec.Code != http.StatusOK {
@@ -238,11 +258,12 @@ func TestMetadataHandler(t *testing.T) {
 		Resource             string   `json:"resource"`
 		AuthorizationServers []string `json:"authorization_servers"`
 		ScopesSupported      []string `json:"scopes_supported"`
+		ResourceName         string   `json:"resource_name"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &md); err != nil {
 		t.Fatal(err)
 	}
-	if md.Resource != testResource || !reflect.DeepEqual(md.AuthorizationServers, []string{testIssuer}) || !reflect.DeepEqual(md.ScopesSupported, []string{"mcp"}) {
+	if md.Resource != testResource || !reflect.DeepEqual(md.AuthorizationServers, []string{testIssuer}) || !reflect.DeepEqual(md.ScopesSupported, []string{"mcp"}) || md.ResourceName != testName {
 		t.Errorf("metadata = %+v", md)
 	}
 }

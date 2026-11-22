@@ -1,6 +1,7 @@
 // Package logging configures the process-wide slog logger. The level comes
-// from KROGER_MCP_LOG_LEVEL, and a TRACE level below DEBUG is available for
-// per-request diagnostics that should stay off by default.
+// from <PREFIX>_LOG_LEVEL (e.g. KROGER_MCP_LOG_LEVEL), and a TRACE level below
+// DEBUG is available for per-request diagnostics that should stay off by
+// default.
 package logging
 
 import (
@@ -13,10 +14,11 @@ import (
 // LevelTrace sits below slog.LevelDebug for very verbose output.
 const LevelTrace = slog.Level(-8)
 
-// Setup installs a text slog handler on stderr as the default logger.
-func Setup() {
+// Setup installs a text slog handler on stderr as the default logger, at the
+// level named by <envPrefix>_LOG_LEVEL.
+func Setup(envPrefix string) {
 	opts := &slog.HandlerOptions{
-		Level: ParseLevel(os.Getenv("KROGER_MCP_LOG_LEVEL")),
+		Level: ParseLevel(os.Getenv(envPrefix + "_LOG_LEVEL")),
 		ReplaceAttr: func(_ []string, a slog.Attr) slog.Attr {
 			if a.Key == slog.LevelKey {
 				if lvl, ok := a.Value.Any().(slog.Level); ok && lvl == LevelTrace {

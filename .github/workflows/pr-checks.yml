@@ -1,7 +1,17 @@
 name: PR Checks
 
+# Seeded by go-mcp-template: repos add their own jobs (an integration job, extra
+# tools for tests) below `checks`. Template sync merges changes here by hand.
+#
+# Also runs on each push to main, where only the light `merged` job runs: the
+# commit already passed the full checks as a PR, so this just confirms it still
+# builds and passes unit tests as merged. kroger-mcp's release.yml doesn't wait
+# on it yet (the template's automatic releases aren't adopted); if it ever does,
+# keep this workflow's name in step with release.yml.
 on:
   pull_request:
+    branches: [main]
+  push:
     branches: [main]
 
 # Jobs widen this as they need to.
@@ -10,11 +20,15 @@ permissions:
 
 jobs:
   checks:
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      # The Go steps skip until the repo has a go.mod, so the template itself
+      # stays green.
       - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
+        if: hashFiles('go.mod') != ''
         with:
           # Newest 1.26 patch, so builds and govulncheck get stdlib security
           # fixes. go.mod's `go` line is only the minimum language version.
@@ -22,6 +36,7 @@ jobs:
           check-latest: true
 
       - name: Format check
+        if: hashFiles('go.mod') != ''
         run: |
           if [ -n "$(gofmt -l .)" ]; then
             echo "The following files need formatting:"
@@ -30,13 +45,15 @@ jobs:
           fi
 
       - name: Vet
+        if: hashFiles('go.mod') != ''
         run: |
           go vet ./...
           # Integration tests only build with their tag; vet them too so they
-          # can't rot even when the integration job has no credentials.
+          # can't rot.
           go vet -tags integration ./...
 
       - name: Lint
+        if: hashFiles('go.mod') != ''
         uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
         with:
           # Pinned so a new golangci-lint release can't break CI unannounced.
@@ -44,27 +61,25 @@ jobs:
           version: v2.14.0
 
       - name: Build
+        if: hashFiles('go.mod') != ''
         run: go build ./...
 
       - name: Test
-        run: go test ./...
+        if: hashFiles('go.mod') != ''
+        run: go test -race ./...
 
       - name: Docker build
-        run: docker build -t kroger-mcp:ci .
+        if: hashFiles('Dockerfile') != ''
+        run: docker build -t "${{ github.event.repository.name }}:ci" .
 
-      - name: Check for tmp/ directory
-        run: |
-          if [ -d tmp ]; then
-            echo "ERROR: tmp/ directory must be deleted before merge"
-            exit 1
-          fi
-
+  # Runs integration/ (build tag `integration`) once the fast checks pass.
   integration:
     name: integration (Kroger certification API)
     runs-on: ubuntu-latest
     # Only spend Kroger API quota once format, vet, lint, build and unit
     # tests have passed.
     needs: checks
+    if: github.event_name == 'pull_request'
     # One run at a time per PR, so pushes don't pile up calls to Kroger.
     concurrency:
       group: integration-${{ github.event.pull_request.number }}
@@ -93,7 +108,9 @@ jobs:
           fi
           go test -tags integration -count=1 -v ./integration/...
 
+  # The PR title becomes the squash commit, so this only applies to PRs.
   semantic-pr:
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       pull-requests: read
@@ -101,3 +118,24 @@ jobs:
       - uses: amannn/action-semantic-pull-request@2252a14e810aa9b85c2d560bd7070c802206ecf6 # v6.1.2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # On main after a merge: compile and unit tests only.
+  merged:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
+        if: hashFiles('go.mod') != ''
+        with:
+          go-version: "1.26.x"
+          check-latest: true
+
+      - name: Build
+        if: hashFiles('go.mod') != ''
+        run: go build ./...
+
+      - name: Test
+        if: hashFiles('go.mod') != ''
+        run: go test -race ./...

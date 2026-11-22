@@ -31,7 +31,7 @@ import (
 // listenAddr defaults to loopback so a bare local run without auth is
 // private. The container image sets KROGER_MCP_ADDR=:8080.
 func listenAddr() string {
-	if addr := os.Getenv("KROGER_MCP_ADDR"); addr != "" {
+	if addr := os.Getenv(server.EnvPrefix + "_ADDR"); addr != "" {
 		return addr
 	}
 	return "127.0.0.1:8080"
@@ -39,7 +39,12 @@ func listenAddr() string {
 
 // allowUnauthEnv opts in to serving the MCP endpoint without auth on a
 // non-loopback address.
-const allowUnauthEnv = "KROGER_MCP_ALLOW_UNAUTHENTICATED"
+const allowUnauthEnv = server.EnvPrefix + "_ALLOW_UNAUTHENTICATED"
+
+// authConfig reads the KROGER_MCP_OIDC_* settings.
+func authConfig() auth.Config {
+	return auth.ConfigFromEnv(server.Name, server.EnvPrefix)
+}
 
 // isLoopback reports whether addr (host:port) listens only on loopback. An
 // empty host binds every interface, so it doesn't count.
@@ -68,8 +73,8 @@ func checkExposure(addr string, authOn bool) error {
 			"addr", addr, allowUnauthEnv, true)
 		return nil
 	}
-	return fmt.Errorf("refusing to listen on %q without auth: set KROGER_MCP_OIDC_ISSUER to require OAuth, "+
-		"listen on loopback (e.g. 127.0.0.1:8080), or set %s=true if the network is trusted", addr, allowUnauthEnv)
+	return fmt.Errorf("refusing to listen on %q without auth: set %s_OIDC_ISSUER to require OAuth, "+
+		"listen on loopback (e.g. 127.0.0.1:8080), or set %s=true if the network is trusted", addr, server.EnvPrefix, allowUnauthEnv)
 }
 
 func main() {
@@ -82,7 +87,7 @@ func main() {
 		return
 	}
 
-	logging.Setup()
+	logging.Setup(server.EnvPrefix)
 	addr := listenAddr()
 
 	if *healthcheck {
@@ -100,7 +105,7 @@ func main() {
 }
 
 func run(addr string) error {
-	if err := checkExposure(addr, auth.Enabled()); err != nil {
+	if err := checkExposure(addr, authConfig().Enabled()); err != nil {
 		return err
 	}
 
@@ -184,8 +189,8 @@ func newHandler(ctx context.Context, kc *kroger.Client) (http.Handler, error) {
 
 	mux.Handle(kc.Config().CallbackPath(), kc.CallbackHandler())
 
-	if auth.Enabled() {
-		authn, err := auth.New(ctx)
+	if cfg := authConfig(); cfg.Enabled() {
+		authn, err := auth.New(ctx, cfg)
 		if err != nil {
 			return nil, err
 		}
@@ -199,7 +204,7 @@ func newHandler(ctx context.Context, kc *kroger.Client) (http.Handler, error) {
 			"scopes_supported", md.ScopesSupported,
 		)
 	} else {
-		slog.Warn("auth disabled: the MCP endpoint is open to anyone who can reach it; set KROGER_MCP_OIDC_ISSUER to require OAuth")
+		slog.Warn("auth disabled: the MCP endpoint is open to anyone who can reach it; set " + server.EnvPrefix + "_OIDC_ISSUER to require OAuth")
 	}
 
 	// The SDK's DNS-rebinding check only covers loopback. This rejects

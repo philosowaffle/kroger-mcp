@@ -22,6 +22,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
+        if: hashFiles('go.mod') != ''
         with:
           # Newest 1.26 patch, so builds and govulncheck get stdlib security
           # fixes. go.mod's `go` line is only the minimum language version.
@@ -29,7 +30,9 @@ jobs:
           check-latest: true
 
       # Fails only on vulnerabilities in code the module actually calls.
+      # Skips until the repo has a go.mod, so the template itself stays green.
       - name: govulncheck
+        if: hashFiles('go.mod') != ''
         run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
 
   codeql:

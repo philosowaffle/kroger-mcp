@@ -1,4 +1,4 @@
-// Package auth makes kroger-mcp an OAuth 2.0 protected resource (the MCP
+// Package auth makes an MCP server an OAuth 2.0 protected resource (the MCP
 // authorization spec, RFC 9728). It runs no OAuth flows of its own: an
 // external authorization server such as Authelia handles login, consent and
 // token issuance. This package only
@@ -12,8 +12,12 @@
 // Auth is opt-in. With no issuer configured the server is unauthenticated,
 // which suits LAN or VPN-only deployments.
 //
-// This guards access to the MCP endpoint itself. Access to the Kroger API is
-// a separate concern handled by package kroger.
+// This guards access to the MCP endpoint itself. Credentials for whatever
+// service the server wraps are a separate concern.
+//
+// Settings come from <PREFIX>_OIDC_* variables, where the prefix is the
+// server's own (e.g. KROGER_MCP), so the package is shared unchanged by every
+// repo made from the Go MCP template.
 package auth
 
 import (
@@ -38,6 +42,11 @@ const MetadataPath = "/.well-known/oauth-protected-resource"
 
 // Config is the resource-server configuration, read from the environment.
 type Config struct {
+	// Name is the server's name, advertised as the metadata's resource_name.
+	Name string
+	// EnvPrefix is the server's environment variable prefix, e.g. KROGER_MCP.
+	// It names the variables in error messages.
+	EnvPrefix string
 	// Issuer is the authorization server's issuer URL, used for OIDC discovery.
 	Issuer string
 	// Resource identifies this server. It is advertised in the metadata and
@@ -48,18 +57,23 @@ type Config struct {
 	Scopes []string
 	// RequireATJWT rejects tokens whose JOSE typ header isn't at+jwt
 	// (RFC 9068), so an ID token for the same audience can't be used as an
-	// access token. On unless KROGER_MCP_OIDC_REQUIRE_AT_JWT is false.
+	// access token. On unless <PREFIX>_OIDC_REQUIRE_AT_JWT is false.
 	RequireATJWT bool
 }
 
-// ConfigFromEnv reads the KROGER_MCP_OIDC_* variables.
-func ConfigFromEnv() Config {
-	return Config{
-		Issuer:       strings.TrimSpace(os.Getenv("KROGER_MCP_OIDC_ISSUER")),
-		Resource:     strings.TrimSpace(os.Getenv("KROGER_MCP_OIDC_RESOURCE")),
-		Scopes:       strings.Fields(os.Getenv("KROGER_MCP_OIDC_SCOPES")),
-		RequireATJWT: !isFalse(os.Getenv("KROGER_MCP_OIDC_REQUIRE_AT_JWT")),
-	}
+// ConfigFromEnv reads the <envPrefix>_OIDC_* variables for the server name.
+func ConfigFromEnv(name, envPrefix string) Config {
+	c := Config{Name: name, EnvPrefix: envPrefix}
+	c.Issuer = strings.TrimSpace(os.Getenv(c.env("ISSUER")))
+	c.Resource = strings.TrimSpace(os.Getenv(c.env("RESOURCE")))
+	c.Scopes = strings.Fields(os.Getenv(c.env("SCOPES")))
+	c.RequireATJWT = !isFalse(os.Getenv(c.env("REQUIRE_AT_JWT")))
+	return c
+}
+
+// env names the <EnvPrefix>_OIDC_<key> variable.
+func (c Config) env(key string) string {
+	return c.EnvPrefix + "_OIDC_" + key
 }
 
 // isFalse reports whether s is an explicit "off" value. Anything else,
@@ -73,8 +87,8 @@ func isFalse(s string) bool {
 }
 
 // Enabled reports whether an issuer is configured, which turns auth on.
-func Enabled() bool {
-	return ConfigFromEnv().Issuer != ""
+func (c Config) Enabled() bool {
+	return c.Issuer != ""
 }
 
 // Authenticator validates bearer tokens and serves the metadata document.
@@ -84,10 +98,9 @@ type Authenticator struct {
 	metadata *oauthex.ProtectedResourceMetadata
 }
 
-// New builds an Authenticator from the environment. It runs OIDC discovery,
-// so the issuer must be reachable at startup.
-func New(ctx context.Context) (*Authenticator, error) {
-	cfg := ConfigFromEnv()
+// New builds an Authenticator from cfg. It runs OIDC discovery, so the
+// issuer must be reachable at startup.
+func New(ctx context.Context, cfg Config) (*Authenticator, error) {
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
@@ -115,17 +128,17 @@ func newAuthenticator(cfg Config, verifier *oidc.IDTokenVerifier) *Authenticator
 			AuthorizationServers:   []string{cfg.Issuer},
 			ScopesSupported:        cfg.Scopes,
 			BearerMethodsSupported: []string{"header"},
-			ResourceName:           "kroger-mcp",
+			ResourceName:           cfg.Name,
 		},
 	}
 }
 
 func (c Config) validate() error {
 	if c.Issuer == "" {
-		return errors.New("auth: KROGER_MCP_OIDC_ISSUER is required")
+		return fmt.Errorf("auth: %s is required", c.env("ISSUER"))
 	}
 	if c.Resource == "" {
-		return errors.New("auth: KROGER_MCP_OIDC_RESOURCE is required")
+		return fmt.Errorf("auth: %s is required", c.env("RESOURCE"))
 	}
 	return nil
 }
@@ -155,7 +168,7 @@ func (a *Authenticator) metadataURL() string {
 
 func (a *Authenticator) verify(ctx context.Context, token string, _ *http.Request) (*mcpauth.TokenInfo, error) {
 	if a.cfg.RequireATJWT {
-		if err := checkAccessTokenType(token); err != nil {
+		if err := checkAccessTokenType(token, a.cfg.env("REQUIRE_AT_JWT")); err != nil {
 			slog.Warn("auth: token rejected", "err", err)
 			return nil, fmt.Errorf("%w: %w", mcpauth.ErrInvalidToken, err)
 		}
@@ -188,8 +201,9 @@ func (a *Authenticator) verify(ctx context.Context, token string, _ *http.Reques
 
 // checkAccessTokenType requires the JOSE typ header of an RFC 9068 access
 // token. go-oidc's verifier doesn't look at typ, so without this an ID token
-// whose aud contains the resource would also be accepted.
-func checkAccessTokenType(token string) error {
+// whose aud contains the resource would also be accepted. optOut names the
+// variable that turns the check off.
+func checkAccessTokenType(token, optOut string) error {
 	header, _, ok := strings.Cut(token, ".")
 	if !ok {
 		return errors.New("malformed jwt")
@@ -208,7 +222,7 @@ func checkAccessTokenType(token string) error {
 	case "at+jwt", "application/at+jwt":
 		return nil
 	}
-	return fmt.Errorf("jwt typ %q is not at+jwt; is this an ID token? (set KROGER_MCP_OIDC_REQUIRE_AT_JWT=false if your IdP omits it)", h.Typ)
+	return fmt.Errorf("jwt typ %q is not at+jwt; is this an ID token? (set %s=false if your IdP omits it)", h.Typ, optOut)
 }
 
 // scpScopes reads the scp claim, which IdPs emit as a space-separated string
