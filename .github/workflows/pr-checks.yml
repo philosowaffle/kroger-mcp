@@ -5,9 +5,9 @@ name: PR Checks
 #
 # Also runs on each push to main, where only the light `merged` job runs: the
 # commit already passed the full checks as a PR, so this just confirms it still
-# builds and passes unit tests as merged. kroger-mcp's release.yml doesn't wait
-# on it yet (the template's automatic releases aren't adopted); if it ever does,
-# keep this workflow's name in step with release.yml.
+# builds and passes unit tests as merged. Release waits for this workflow (by
+# its name) to pass there before it publishes; keep the name in step with
+# release.yml.
 on:
   pull_request:
     branches: [main]

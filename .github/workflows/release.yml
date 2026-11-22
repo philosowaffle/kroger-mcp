@@ -1,12 +1,20 @@
 name: Release
 
 # Three ways in:
-#   - Actions → Release → "Run workflow" with a version: tags main and releases.
+#   - Merging to main: once PR Checks passes on the merged commit, releases it
+#     when the Conventional Commits since the last tag call for one (breaking
+#     change → major, feat → minor, fix or perf → patch; the first release is
+#     v0.1.0). Every merge also publishes the `main` image, release or not.
+#   - Actions → Release → "Run workflow" with a version: tags main, releases
+#     and updates the `main` image.
 #   - Pushing a vX.Y.Z tag: releases that tag.
-#   - Merging to main: publishes a `main` image only (no GitHub release).
 on:
-  push:
+  # Matches PR Checks by its `name:`; rename both together.
+  workflow_run:
+    workflows: ["PR Checks"]
+    types: [completed]
     branches: [main]
+  push:
     tags: ["v*.*.*"]
   workflow_dispatch:
     inputs:
@@ -15,29 +23,53 @@ on:
         required: true
         type: string
 
+# Seeded by go-mcp-template. The names come from the repository and go.mod.
+# If the binary and image are named otherwise (kroger-cart publishes
+# kroger-mcp), set NAME and the end of IMAGE here. LICENSE must match the
+# LICENSE file.
 env:
-  IMAGE: ghcr.io/${{ github.repository_owner }}/kroger-mcp
+  NAME: ${{ github.event.repository.name }}
+  IMAGE: ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}
+  LICENSE: GPL-3.0-only
 
 # Jobs widen this as they need to.
 permissions:
   contents: read
 
+# One release run at a time, in order, so versions never collide.
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  # Works out what this run is, and for a manual run creates the tag.
+  # Works out what this run is (release, `main` image only, or nothing) and,
+  # for a release from main, creates the tag.
   prepare:
+    # The template itself publishes nothing; repos made from it do. After a
+    # merge, only a green PR Checks run on a push to this repo's main counts.
+    if: >-
+      github.repository != 'philosowaffle/go-mcp-template' &&
+      (github.event_name != 'workflow_run' || (
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.head_repository.full_name == github.repository))
     runs-on: ubuntu-latest
     permissions:
       contents: write
     outputs:
+      publish: ${{ steps.mode.outputs.publish }}
+      main: ${{ steps.mode.outputs.main }}
       release: ${{ steps.mode.outputs.release }}
       version: ${{ steps.mode.outputs.version }}
+      sha: ${{ steps.mode.outputs.sha }}
+    env:
+      # The commit to publish. After a merge it is the one PR Checks ran on,
+      # not whatever main points at by now.
+      SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
           fetch-depth: 0
 
       - name: Resolve mode
@@ -45,26 +77,74 @@ jobs:
         env:
           INPUT_VERSION: ${{ inputs.version }}
         run: |
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          tagged=""
           case "$GITHUB_EVENT_NAME:$GITHUB_REF" in
+            workflow_run:*)
+              # A newer commit has landed since: its run releases this one too.
+              git fetch -q origin main
+              if [ "$SHA" != "$(git rev-parse origin/main)" ]; then
+                echo "main has moved past $SHA; nothing to do"
+                echo "publish=false" >> "$GITHUB_OUTPUT"; exit 0
+              fi
+              # The commit is main's tip, so its image is `main` too.
+              echo "main=true" >> "$GITHUB_OUTPUT"
+              # A re-run of a release that already tagged this commit.
+              tagged=$(git tag --points-at "$SHA" --list 'v*.*.*' | sort -V | tail -n1)
+              if [ -n "$tagged" ]; then
+                version="$tagged"
+              else
+                last=$(git describe --tags --abbrev=0 --match 'v[0-9]*.[0-9]*.[0-9]*' "$SHA" 2>/dev/null || true)
+                range="${last:+$last..}$SHA"
+                subjects=$(git log --format=%s "$range")
+                bodies=$(git log --format=%b "$range")
+                scope='(\([^)]*\))?'
+                if grep -qE "^[a-z]+$scope!:" <<<"$subjects" || grep -qE '^BREAKING[ -]CHANGE:' <<<"$bodies"; then
+                  bump=major
+                elif grep -qE "^feat$scope:" <<<"$subjects"; then
+                  bump=minor
+                elif grep -qE "^(fix|perf)$scope:" <<<"$subjects"; then
+                  bump=patch
+                else
+                  echo "No feat, fix, perf or breaking commits since ${last:-the start}; publishing the main image only"
+                  echo "publish=true" >> "$GITHUB_OUTPUT"
+                  echo "release=false" >> "$GITHUB_OUTPUT"; exit 0
+                fi
+                if [ -z "$last" ]; then
+                  version=v0.1.0
+                else
+                  IFS=. read -r major minor patch <<<"${last#v}"
+                  case "$bump" in
+                    major) version="v$((major + 1)).0.0" ;;
+                    minor) version="v$major.$((minor + 1)).0" ;;
+                    patch) version="v$major.$minor.$((patch + 1))" ;;
+                  esac
+                fi
+                echo "$bump bump since ${last:-the start}: $version"
+              fi
+              ;;
             workflow_dispatch:refs/heads/main)
+              echo "main=true" >> "$GITHUB_OUTPUT"
               version="$INPUT_VERSION" ;;
             workflow_dispatch:*)
               echo "::error::Run the release from main, not $GITHUB_REF_NAME"; exit 1 ;;
             push:refs/tags/*)
-              version="$GITHUB_REF_NAME" ;;
+              version="$GITHUB_REF_NAME"; tagged="$version" ;;
             *)
-              echo "release=false" >> "$GITHUB_OUTPUT"; exit 0 ;;
+              echo "::error::Unexpected trigger $GITHUB_EVENT_NAME:$GITHUB_REF"; exit 1 ;;
           esac
           if ! [[ "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "::error::Version must look like v1.2.3, got '$version'"; exit 1
           fi
+          echo "publish=true" >> "$GITHUB_OUTPUT"
           echo "release=true" >> "$GITHUB_OUTPUT"
           echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tagged=$tagged" >> "$GITHUB_OUTPUT"
 
       # Tags pushed with GITHUB_TOKEN don't start new workflow runs, so this
       # run carries on with the release itself.
       - name: Create tag
-        if: github.event_name == 'workflow_dispatch'
+        if: steps.mode.outputs.release == 'true' && steps.mode.outputs.tagged == ''
         env:
           VERSION: ${{ steps.mode.outputs.version }}
         run: |
@@ -73,11 +153,12 @@ jobs:
           fi
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -a "$VERSION" -m "$VERSION"
+          git tag -a "$VERSION" -m "$VERSION" "$SHA"
           git push origin "$VERSION"
 
   image:
     needs: prepare
+    if: needs.prepare.outputs.publish == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -88,7 +169,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.prepare.outputs.version || github.sha }}
+          ref: ${{ needs.prepare.outputs.version || needs.prepare.outputs.sha }}
 
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
@@ -105,14 +186,15 @@ jobs:
           images: ${{ env.IMAGE }}
           # Set explicitly rather than relying on GitHub's license detection.
           labels: |
-            org.opencontainers.image.licenses=GPL-3.0-only
-          # Release: 1.2.3, 1.2, latest.  Merge to main: main, sha-abc1234.
+            org.opencontainers.image.licenses=${{ env.LICENSE }}
+          # Release: 1.2.3, 1.2, latest.  From main (a merge or a manual
+          # release, but not a pushed tag): main, sha-abc1234 as well.
           tags: |
             type=semver,pattern={{version}},value=${{ needs.prepare.outputs.version }},enable=${{ needs.prepare.outputs.release == 'true' }}
             type=semver,pattern={{major}}.{{minor}},value=${{ needs.prepare.outputs.version }},enable=${{ needs.prepare.outputs.release == 'true' }}
             type=raw,value=latest,enable=${{ needs.prepare.outputs.release == 'true' }}
-            type=raw,value=main,enable=${{ needs.prepare.outputs.release != 'true' }}
-            type=sha,enable=${{ needs.prepare.outputs.release != 'true' }}
+            type=raw,value=main,enable=${{ needs.prepare.outputs.main == 'true' }}
+            type=sha,enable=${{ needs.prepare.outputs.main == 'true' }}
 
       - name: Build and push image
         id: build
@@ -125,7 +207,7 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             VERSION=${{ needs.prepare.outputs.version || 'main' }}
-            COMMIT=${{ github.sha }}
+            COMMIT=${{ needs.prepare.outputs.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           sbom: true
@@ -181,12 +263,12 @@ jobs:
           mkdir -p dist
           pkg="$(go list -m)/internal/server"
           ldflags="-s -w -X $pkg.Version=$VERSION -X $pkg.Commit=$(git rev-parse --short HEAD)"
-          GOOS=linux   GOARCH=amd64 go build -ldflags "$ldflags" -o dist/kroger-mcp-linux-amd64   .
-          GOOS=linux   GOARCH=arm64 go build -ldflags "$ldflags" -o dist/kroger-mcp-linux-arm64   .
-          GOOS=darwin  GOARCH=arm64 go build -ldflags "$ldflags" -o dist/kroger-mcp-darwin-arm64  .
-          GOOS=windows GOARCH=amd64 go build -ldflags "$ldflags" -o dist/kroger-mcp-windows-amd64.exe .
-          # Checksums of the binaries: `sha256sum -c SHA256SUMS` in a download folder.
-          (cd dist && sha256sum kroger-mcp-* > SHA256SUMS)
+          for target in linux/amd64 linux/arm64 darwin/arm64 windows/amd64; do
+            os="${target%/*}"; arch="${target#*/}"
+            ext=""; [ "$os" = windows ] && ext=".exe"
+            GOOS=$os GOARCH=$arch go build -ldflags "$ldflags" -o "dist/$NAME-$os-$arch$ext" .
+          done
+          (cd dist && sha256sum "$NAME"-* > SHA256SUMS)
 
       - name: Attest binaries
         if: ${{ !github.event.repository.private }}
