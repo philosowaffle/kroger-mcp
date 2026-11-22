@@ -110,9 +110,11 @@ Conventions:
 
 ## Releases
 
-Maintainers release from **Actions → Release**. Versions follow
-[SemVer](https://semver.org), and tags are the source of truth. See
-[`docs/runbook.md`](docs/runbook.md#releasing).
+Releases are automatic: merging to `main` releases once PR Checks passes, and
+the PR title's Conventional Commit type picks the version (breaking change →
+major, `feat` → minor, `fix` or `perf` → patch, other types → no release).
+Versions follow [SemVer](https://semver.org), and tags are the source of truth.
+See [`docs/runbook.md`](docs/runbook.md#releasing).
 
 ## License
 

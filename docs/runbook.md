@@ -77,16 +77,26 @@ integration code either way, so it can't silently stop compiling.
 
 ## Releasing
 
-1. Merge to `main` with Conventional Commit titles, since git-cliff builds the
-   notes from them. Each merge also publishes a `main` image
-   (`ghcr.io/philosowaffle/kroger-mcp:main`) you can test before releasing.
-2. Go to **Actions → Release → Run workflow** with branch `main`, enter the
-   version (`vX.Y.Z`), and run it. Pushing a `vX.Y.Z` tag from a terminal also
-   works.
-3. The workflow creates the tag (manual runs only), pushes the image
-   (`X.Y.Z`, `X.Y`, `latest`) for amd64 and arm64, creates the GitHub release
-   with binaries and a `SHA256SUMS` file, and then commits `CHANGELOG.md` to
-   `main` in a separate job.
+Releases are automatic. When a PR merges to `main` and PR Checks passes on the
+merged commit, the Release workflow reads the Conventional Commit titles since the
+last `vX.Y.Z` tag and picks the version:
+
+- a breaking change (`feat!:`, or `BREAKING CHANGE:` in a body) bumps major
+- `feat` bumps minor
+- `fix` or `perf` bumps patch
+- anything else (`docs`, `chore`, `ci`, `test`, `refactor`) cuts no release
+
+So the PR title's type decides the release. Every merge also publishes a `main`
+image (`ghcr.io/philosowaffle/kroger-mcp:main`), release or not.
+
+A release tags the merged commit, pushes the image (`X.Y.Z`, `X.Y`, `latest`) for
+amd64 and arm64, creates the GitHub release with binaries and a `SHA256SUMS` file,
+and then commits `CHANGELOG.md` to `main` in a separate job. If several PRs merge in
+quick succession, only the newest commit's run releases, covering them all.
+
+To release by hand (say, to cut a release from a `chore` merge), go to **Actions →
+Release → Run workflow** with branch `main` and enter the version (`vX.Y.Z`).
+Pushing a `vX.Y.Z` tag from a terminal also works.
 
 Binaries are static (`CGO_ENABLED=0`) and built with `-trimpath`. The image ships an
 SBOM and max-mode build provenance. Once the repo is public, the workflow also adds

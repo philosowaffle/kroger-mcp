@@ -50,8 +50,4 @@ to GitHub Pages.
   job passes, to save Kroger API quota.
 - **Adding a tool:** add it under `tools/`, register it in `server.New()`, and add a case
   to `internal/server/server_test.go` (including the `TestListTools` list).
-- **Releases stay manual.** `release.yml` hasn't adopted the template's automatic
-  release on merge: a release is cut with Actions → Release → "Run workflow", and a
-  merge to main publishes only the `main` image. Keep that when syncing the template
-  until the owner decides otherwise.
 - **License:** GPL-3.0-only.
