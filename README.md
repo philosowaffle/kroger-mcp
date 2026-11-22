@@ -18,7 +18,7 @@ Fred Meyer, Fry's, Smith's and other Kroger banners.
 
 ## What it looks like
 
-> **You:** Make the King Soopers near 80218 my store, then add a gallon of 2% milk,
+> **You:** Make the King Soopers near zipcode 12345 my store, then add a gallon of 2% milk,
 > a dozen large eggs and sourdough bread to my cart for pickup.
 >
 > **Claude:** *(calls `search_locations`, `set_preferred_location`, then `search_products`
