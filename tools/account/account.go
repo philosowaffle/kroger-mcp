@@ -8,7 +8,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/philosowaffle/kroger-cart/internal/kroger"
+	"github.com/philosowaffle/kroger-mcp/internal/kroger"
 )
 
 // LoginResult is the output of kroger_login.

@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/philosowaffle/kroger-cart/internal/kroger"
-	"github.com/philosowaffle/kroger-cart/internal/kroger/krogertest"
+	"github.com/philosowaffle/kroger-mcp/internal/kroger"
+	"github.com/philosowaffle/kroger-mcp/internal/kroger/krogertest"
 )
 
 func newKrogerClient(t *testing.T) *kroger.Client {

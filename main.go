@@ -21,11 +21,11 @@ import (
 	"github.com/felixge/httpsnoop"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/philosowaffle/kroger-cart/internal/auth"
-	"github.com/philosowaffle/kroger-cart/internal/health"
-	"github.com/philosowaffle/kroger-cart/internal/kroger"
-	"github.com/philosowaffle/kroger-cart/internal/logging"
-	"github.com/philosowaffle/kroger-cart/internal/server"
+	"github.com/philosowaffle/kroger-mcp/internal/auth"
+	"github.com/philosowaffle/kroger-mcp/internal/health"
+	"github.com/philosowaffle/kroger-mcp/internal/kroger"
+	"github.com/philosowaffle/kroger-mcp/internal/logging"
+	"github.com/philosowaffle/kroger-mcp/internal/server"
 )
 
 // listenAddr defaults to loopback so a bare local run without auth is

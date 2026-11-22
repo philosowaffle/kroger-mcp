@@ -5,13 +5,13 @@
 - Go 1.26+
 - Docker + Docker Compose
 - Task (`go-task`): https://taskfile.dev/installation/
-- A Kroger developer app: https://developer.kroger.com (see README → Setup)
+- A Kroger developer app: https://developer.kroger.com (see the README Quickstart)
 
 ## Local Setup
 
 1. Clone the repo.
 2. Create `.env` (gitignored) with at least `KROGER_CLIENT_ID` and
-   `KROGER_CLIENT_SECRET`. See the Config table in `README.md`.
+   `KROGER_CLIENT_SECRET`. See the Configuration table in `README.md`.
 3. `task test` to confirm everything passes.
 4. `task run` to start on `127.0.0.1:8080`, with state in `./data/`.
 5. `claude mcp add --transport http kroger http://localhost:8080`
@@ -19,7 +19,7 @@
 MCP auth is off unless `KROGER_MCP_OIDC_ISSUER` is set, so the server fails closed:
 without auth it only listens on loopback. Setting `KROGER_MCP_ADDR` to a non-loopback
 address (e.g. `:8080`) makes it refuse to start unless auth is on or
-`KROGER_MCP_ALLOW_UNAUTHENTICATED=true`. See README → Running without auth.
+`KROGER_MCP_ALLOW_UNAUTHENTICATED=true`. See `docs/authentication.md` → Running without auth.
 
 For the Docker path, `task docker:up` pulls and starts the published image
 (compose reads `.env`). State is kept in the `kroger-data` volume. The sample
@@ -96,8 +96,8 @@ To verify a download:
 
 ```sh
 sha256sum -c SHA256SUMS --ignore-missing
-gh attestation verify kroger-mcp-linux-amd64 --repo philosowaffle/kroger-cart
-gh attestation verify oci://ghcr.io/philosowaffle/kroger-mcp:vX.Y.Z --repo philosowaffle/kroger-cart
+gh attestation verify kroger-mcp-linux-amd64 --repo philosowaffle/kroger-mcp
+gh attestation verify oci://ghcr.io/philosowaffle/kroger-mcp:vX.Y.Z --repo philosowaffle/kroger-mcp
 ```
 
 Release builds stamp the tag and commit into the binary (`-ldflags -X`), so

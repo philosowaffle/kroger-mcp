@@ -7,7 +7,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/philosowaffle/kroger-cart/internal/kroger"
+	"github.com/philosowaffle/kroger-mcp/internal/kroger"
 )
 
 const detailDoc = `"lite" (default): upc, brand, description, size, price, promo, stock, aisle, fulfillment. "full": Kroger's complete record, adding images, all item and price fields, shelf position, dimensions, temperature and nutrition where Kroger provides it. Use full only when those extras are needed; it is much larger`

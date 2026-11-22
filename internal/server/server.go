@@ -6,11 +6,11 @@ package server
 import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/philosowaffle/kroger-cart/internal/kroger"
-	"github.com/philosowaffle/kroger-cart/tools/account"
-	"github.com/philosowaffle/kroger-cart/tools/cart"
-	"github.com/philosowaffle/kroger-cart/tools/locations"
-	"github.com/philosowaffle/kroger-cart/tools/products"
+	"github.com/philosowaffle/kroger-mcp/internal/kroger"
+	"github.com/philosowaffle/kroger-mcp/tools/account"
+	"github.com/philosowaffle/kroger-mcp/tools/cart"
+	"github.com/philosowaffle/kroger-mcp/tools/locations"
+	"github.com/philosowaffle/kroger-mcp/tools/products"
 )
 
 // Name identifies this server to MCP clients.
@@ -18,8 +18,8 @@ const Name = "kroger-mcp"
 
 // Version and Commit are set at build time with
 //
-//	-ldflags "-X github.com/philosowaffle/kroger-cart/internal/server.Version=v1.2.3
-//	          -X github.com/philosowaffle/kroger-cart/internal/server.Commit=abc1234"
+//	-ldflags "-X github.com/philosowaffle/kroger-mcp/internal/server.Version=v1.2.3
+//	          -X github.com/philosowaffle/kroger-mcp/internal/server.Commit=abc1234"
 //
 // by the Taskfile, Dockerfile and release workflow. Version is reported to MCP
 // clients as serverInfo.version.
