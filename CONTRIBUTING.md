@@ -7,8 +7,9 @@ By participating you agree to the [Code of Conduct](CODE_OF_CONDUCT.md). Report
 security problems privately, as described in [SECURITY.md](SECURITY.md), not in
 an issue.
 
-`CLAUDE.md` is the long-form version of this guide, written for AI coding agents.
-If the two disagree, `CLAUDE.md` wins.
+`docs/process.md` (shared with every repo made from go-mcp-template) and `CLAUDE.md`
+are the long-form version of this guide, written for AI coding agents. If they
+disagree with this guide, they win.
 
 ## Prerequisites
 
@@ -50,8 +51,8 @@ developer app's `KROGER_CLIENT_ID` and `KROGER_CLIENT_SECRET`, and run `task run
 2. **Branch from `main`** as `<type>/<issue#>-short-description`, for example
    `feat/42-bulk-search`.
 3. **Write a spec first** for non-trivial changes: `docs/specs/NNN-short-title.md`,
-   with the problem, testable acceptance criteria and notes. See the existing
-   specs for the format.
+   with the problem, testable acceptance criteria and notes. Copy
+   `docs/specs/000-template.md`.
 4. **Commit often.** Branch commits can be informal; only the PR title lands on
    `main`.
 5. **Open a PR** using the template:
@@ -60,7 +61,6 @@ developer app's `KROGER_CLIENT_ID` and `KROGER_CLIENT_SECRET`, and run `task run
      changelog.
    - The body says `Closes #NNN`.
    - The spec's status and checkboxes reflect what was built.
-   - There's no `tmp/` directory (CI fails if there is).
    - PR Checks pass.
 
 PRs are **squash-merged only**, so each issue lands as one commit on `main`.
