@@ -1,4 +1,14 @@
 # Changelog
+## [1.1.0] - 2026-11-22
+
+### CI/CD
+- release automatically when main passes PR Checks after a merge (#62)
+
+
+### Features
+- redesign the Pages site with a grocery receipt look (#63)
+
+
 ## [1.0.0] - 2026-11-22
 
 ### Bug Fixes
