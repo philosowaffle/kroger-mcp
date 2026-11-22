@@ -6,6 +6,7 @@
   <title>kroger-mcp security notes</title>
   <meta name="description" content="How kroger-mcp keeps your Kroger account safe: its two auth layers, running without auth, what it stores and how to report a vulnerability.">
   <meta name="color-scheme" content="light dark">
+  <link rel="preload" href="fonts/archivo-latin-wdth-wght.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="style.css">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <meta property="og:type" content="website">
@@ -21,55 +22,83 @@
 <body>
   <header class="site">
     <div class="wrap">
-      <a class="brand" href="./">🛒 kroger-mcp</a>
-      <nav>
-        <a href="./">Home</a>
+      <a class="brand" href="./">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4h2.5l2.2 10.2a1.5 1.5 0 0 0 1.5 1.2h8.4a1.5 1.5 0 0 0 1.5-1.1L21 8H6.3"/><circle cx="9.5" cy="19.5" r="1.3"/><circle cx="17" cy="19.5" r="1.3"/></svg>
+        kroger-mcp
+      </a>
+      <nav class="main" aria-label="Main">
         <a href="setup.html">Setup</a>
         <a href="security.html" aria-current="page">Security</a>
-        <a href="https://github.com/philosowaffle/kroger-mcp">GitHub</a>
+        <a class="pill" href="https://github.com/philosowaffle/kroger-mcp">GitHub</a>
       </nav>
     </div>
   </header>
+
   <main>
+    <div class="wrap page-head">
+      <p class="eyebrow">Security · how your account stays yours</p>
+      <h1 class="display page-title">Security notes</h1>
+      <p class="lede">kroger-mcp holds the tokens for your Kroger shopping account and can add to your cart, so it's worth knowing how it protects them.</p>
+    </div>
+
     <div class="wrap">
-      <h1>Security notes</h1>
-      <p>kroger-mcp holds the tokens for your Kroger shopping account and can add to your cart, so it's worth knowing how it protects them.</p>
+      <div class="doc">
+        <section aria-labelledby="layers">
+          <h2 class="small" id="layers">Two auth layers</h2>
+          <div class="layer">
+            <p class="eyebrow">Claude → kroger-mcp</p>
+            <h3>Who can use the server</h3>
+            <p>Optional OAuth on the MCP endpoint, delegated to your own identity provider. kroger-mcp validates JWT access tokens (signature, issuer, audience, expiry and the <code>at+jwt</code> type) on every request.</p>
+          </div>
+          <div class="layer">
+            <p class="eyebrow">kroger-mcp → Kroger</p>
+            <h3>Whose Kroger account it acts on</h3>
+            <p>Kroger's own OAuth. Store and product lookups use your developer app's token; the cart uses your shopping account, which you link once in a browser.</p>
+          </div>
+        </section>
 
-      <h2>Two auth layers</h2>
-      <ul>
-        <li><strong>Who can use the server</strong> (Claude → kroger-mcp). Optional OAuth on the MCP endpoint, delegated to your own identity provider. kroger-mcp validates JWT access tokens (signature, issuer, audience, expiry and the <code>at+jwt</code> type) on every request.</li>
-        <li><strong>Whose Kroger account it acts on</strong> (kroger-mcp → Kroger). Kroger's own OAuth. Store and product lookups use your developer app's token; the cart uses your shopping account, which you link once in a browser.</li>
-      </ul>
+        <section aria-labelledby="noauth">
+          <h2 class="small" id="noauth">Running without auth</h2>
+          <div class="stamp-notice compact">
+            <div class="copy">
+              <p><strong>Don't expose the server without MCP auth beyond localhost or a network you trust.</strong> With auth off, anyone who can reach it can add to your cart, or link their own Kroger account in place of yours so your later adds land in their cart.</p>
+            </div>
+          </div>
+          <p>With auth off, the server refuses to listen beyond loopback unless you set <code>KROGER_MCP_ALLOW_UNAUTHENTICATED=true</code>. The sample compose file publishes the port on <code>127.0.0.1</code> only. If an account is already linked, <code>kroger_login</code> warns before replacing it, and the server logs the swap.</p>
+        </section>
 
-      <h2>Running without auth</h2>
-      <div class="callout">
-        <strong>Don't expose the server without MCP auth beyond localhost or a network you trust.</strong> With auth off, anyone who can reach it can add to your cart, or link their own Kroger account in place of yours so your later adds land in their cart.
+        <section aria-labelledby="linking">
+          <h2 class="small" id="linking">Linking safely</h2>
+          <p>Kroger's redirect has to reach the server without a bearer token, so the callback route is open. It only accepts a single-use state from a login URL issued through an MCP call in the last 15 minutes, so nobody can link an account without first getting a login URL from the server.</p>
+        </section>
+
+        <section aria-labelledby="stores">
+          <h2 class="small" id="stores">What it stores</h2>
+          <p>The linked account's access and refresh tokens, and your default store, live in <code>state.json</code> in the data directory (a Docker volume in the sample setup). Treat that file like a password. The server has no Kroger credentials of its own: you register your own developer app and agree to Kroger's developer terms.</p>
+        </section>
+
+        <section aria-labelledby="supply">
+          <h2 class="small" id="supply">Supply chain</h2>
+          <p>Workflows pin every action to a commit SHA with minimal permissions, dependencies and code are scanned with govulncheck and CodeQL, and release images ship an SBOM and build provenance alongside checksummed binaries.</p>
+        </section>
+
+        <section class="panel" aria-labelledby="report">
+          <p class="eyebrow">Private disclosure</p>
+          <h2 class="display" id="report">Reporting a vulnerability</h2>
+          <p>Please report privately through GitHub Security Advisories, as described in <a href="https://github.com/philosowaffle/kroger-mcp/blob/main/SECURITY.md">SECURITY.md</a>, not in a public issue.</p>
+        </section>
       </div>
-      <p>With auth off, the server refuses to listen beyond loopback unless you set <code>KROGER_MCP_ALLOW_UNAUTHENTICATED=true</code>. The sample compose file publishes the port on <code>127.0.0.1</code> only. If an account is already linked, <code>kroger_login</code> warns before replacing it, and the server logs the swap.</p>
-
-      <h2>Linking safely</h2>
-      <p>Kroger's redirect has to reach the server without a bearer token, so the callback route is open. It only accepts a single-use state from a login URL issued through an MCP call in the last 15 minutes, so nobody can link an account without first getting a login URL from the server.</p>
-
-      <h2>What it stores</h2>
-      <p>The linked account's access and refresh tokens, and your default store, live in <code>state.json</code> in the data directory (a Docker volume in the sample setup). Treat that file like a password. The server has no Kroger credentials of its own: you register your own developer app and agree to Kroger's developer terms.</p>
-
-      <h2>Supply chain</h2>
-      <p>Workflows pin every action to a commit SHA with minimal permissions, dependencies are scanned with govulncheck (and CodeQL once the repo is public), and release images ship an SBOM and build provenance alongside checksummed binaries.</p>
-
-      <h2>Reporting a vulnerability</h2>
-      <p>Please report privately through GitHub Security Advisories, as described in <a href="https://github.com/philosowaffle/kroger-mcp/blob/main/SECURITY.md">SECURITY.md</a>, not in a public issue.</p>
     </div>
   </main>
-  <footer class="site">
+
+  <footer class="site short">
     <div class="wrap">
-      <p class="links">
+      <nav aria-label="Footer">
         <a href="https://github.com/philosowaffle/kroger-mcp">GitHub</a>
         <a href="https://buymeacoffee.com/philosowaffle">Buy me a coffee</a>
         <a href="https://github.com/philosowaffle/kroger-mcp/blob/main/SECURITY.md">Report a vulnerability</a>
-      </p>
-      <p>Built with substantial help from an AI coding assistant (Claude Code). The maintainer reviews every change, and the server is covered by end-to-end and integration tests.</p>
-      <p>kroger-mcp is an independent, unofficial project. It is not affiliated with, endorsed by, or sponsored by The Kroger Co. or any of its banners. &ldquo;Kroger&rdquo; and the banner names are trademarks of their respective owners, used only to describe what the software works with.</p>
-      <p>Licensed under <a href="https://github.com/philosowaffle/kroger-mcp/blob/main/LICENSE">GPL-3.0</a>.</p>
+      </nav>
+      <p>Unofficial · not affiliated with The Kroger Co. ·&nbsp;<a href="https://github.com/philosowaffle/kroger-mcp/blob/main/LICENSE">GPL-3.0</a></p>
     </div>
   </footer>
 </body>

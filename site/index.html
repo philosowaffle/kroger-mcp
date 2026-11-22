@@ -6,6 +6,7 @@
   <title>kroger-mcp: let Claude build your Kroger grocery cart</title>
   <meta name="description" content="A self-hosted MCP server for the Kroger Public API. Find stores, search products with price, stock and aisle, and add items to your cart.">
   <meta name="color-scheme" content="light dark">
+  <link rel="preload" href="fonts/archivo-latin-wdth-wght.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="style.css">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <meta property="og:type" content="website">
@@ -21,77 +22,197 @@
 <body>
   <header class="site">
     <div class="wrap">
-      <a class="brand" href="./">🛒 kroger-mcp</a>
-      <nav>
-        <a href="./" aria-current="page">Home</a>
+      <a class="brand" href="./">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4h2.5l2.2 10.2a1.5 1.5 0 0 0 1.5 1.2h8.4a1.5 1.5 0 0 0 1.5-1.1L21 8H6.3"/><circle cx="9.5" cy="19.5" r="1.3"/><circle cx="17" cy="19.5" r="1.3"/></svg>
+        kroger-mcp
+      </a>
+      <nav class="main" aria-label="Main">
         <a href="setup.html">Setup</a>
         <a href="security.html">Security</a>
-        <a href="https://github.com/philosowaffle/kroger-mcp">GitHub</a>
+        <a class="pill" href="https://github.com/philosowaffle/kroger-mcp">GitHub</a>
       </nav>
     </div>
   </header>
+
   <main>
-    <div class="wrap">
-      <section class="hero">
-        <h1>Let Claude build your grocery cart.</h1>
-        <p class="lede">kroger-mcp is a self-hosted <a href="https://modelcontextprotocol.io">MCP</a> server for the Kroger Public API. Claude finds your store, searches products with price, promo, stock and aisle, and adds what you pick to your cart at King Soopers, Kroger, Ralphs, Fred Meyer, Fry's, Smith's and other Kroger banners.</p>
+    <section class="wrap hero">
+      <div class="hero-copy">
+        <p class="eyebrow">Self-hosted MCP server · Kroger Public API</p>
+        <h1 class="display">Let Claude build your grocery cart.</h1>
+        <p class="lede">kroger-mcp is a self-hosted <a href="https://modelcontextprotocol.io">MCP</a> server for the Kroger Public API. Claude finds your store, searches products with price, promo, stock and aisle, and adds what you pick to your cart.</p>
         <div class="buttons">
-          <a class="button primary" href="setup.html">Set it up</a>
+          <a class="button primary" href="setup.html">Set it up
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
           <a class="button secondary" href="https://github.com/philosowaffle/kroger-mcp">View on GitHub</a>
         </div>
-      </section>
-
-      <h2>What it looks like</h2>
-      <div class="chat">
-        <p><span class="who">You:</span> Make the King Soopers near zipcode 12345 my store, then add a gallon of 2% milk, a dozen large eggs and sourdough bread to my cart for pickup.</p>
-        <p><span class="who">Claude:</span> <span class="tool">(searches stores, saves your store, searches each item)</span> I saved the nearest King Soopers as your store and found Kroger 2% Milk (1 gal, $3.49, aisle 12), Simple Truth Large Eggs (12 ct, $4.29, on sale) and Private Selection Sourdough ($3.99). Add all three?</p>
-        <p><span class="who">You:</span> Yes.</p>
-        <p><span class="who">Claude:</span> <span class="tool">(adds to cart)</span> Added. Open the King Soopers app or website to pick a pickup time and check out.</p>
-      </div>
-      <p class="note">An illustrative example. Prices and products come live from Kroger for your store.</p>
-
-      <h2>What you get</h2>
-      <div class="grid">
-        <div class="card"><h3>Stores</h3><p>Find stores by zip or coordinates, filter by chain and department, and save a default.</p></div>
-        <div class="card"><h3>Products</h3><p>Search by term or brand. Scoped to your store, results add price, promos, stock and aisle.</p></div>
-        <div class="card"><h3>Cart</h3><p>Add items for pickup or delivery once you link your Kroger shopping account.</p></div>
-        <div class="card"><h3>Self-hosted</h3><p>A Go server in Docker, over Streamable HTTP, with optional OAuth on the endpoint.</p></div>
+        <p class="banners">King Soopers · Kroger · Ralphs · Fred Meyer · Fry's · Smith's · and other Kroger banners</p>
       </div>
 
-      <h2>Tools</h2>
-      <div class="table-scroll">
-        <table>
-          <thead><tr><th>Tool</th><th>What it does</th></tr></thead>
-          <tbody>
-            <tr><td><code>search_locations</code></td><td>Find stores by zip code, coordinates or id.</td></tr>
-            <tr><td><code>get_location</code></td><td>Get one store.</td></tr>
-            <tr><td><code>set_preferred_location</code></td><td>Save a default store.</td></tr>
-            <tr><td><code>list_chains</code></td><td>List chains, or look one up.</td></tr>
-            <tr><td><code>list_departments</code></td><td>List departments, or look one up.</td></tr>
-            <tr><td><code>search_products</code></td><td>Search by term, brand or product ids.</td></tr>
-            <tr><td><code>get_product</code></td><td>Get one product by product id or UPC.</td></tr>
-            <tr><td><code>kroger_login</code></td><td>Get a single-use URL to link your shopping account.</td></tr>
-            <tr><td><code>kroger_auth_status</code></td><td>Check the linked account and default store.</td></tr>
-            <tr><td><code>add_to_cart</code></td><td>Add items to your cart by UPC.</td></tr>
-          </tbody>
-        </table>
-      </div>
+      <figure class="hero-receipt receipt-figure">
+        <figcaption class="visually-hidden">An illustrative example conversation, printed as a receipt. You ask Claude to make the King Soopers near zip code 12345 your store and add 2% milk, a dozen large eggs and sourdough bread for pickup. Claude saves the store and finds Kroger 2% Milk for $3.49 in aisle 12, Simple Truth Large Eggs for $4.29 on sale, and Private Selection Sourdough for $3.99. You say yes, Claude adds all three to your cart, and you check out in the store's app. Prices and products come live from Kroger for your store.</figcaption>
+        <div class="receipt" aria-hidden="true">
+          <div class="head">
+            <span class="title">CLAUDE × YOUR STORE</span>
+            <span class="muted">KING SOOPERS · PICKUP</span>
+          </div>
+          <hr class="rule">
+          <p><strong>YOU&gt;</strong> make the King Soopers near 12345 my store, then add 2% milk, a dozen large eggs and sourdough.</p>
+          <div class="call">
+            <span>› search_locations</span>
+            <span>› set_preferred_location</span>
+            <span>› search_products ×3</span>
+          </div>
+          <hr class="rule">
+          <div class="items">
+            <div class="price">
+              <div class="line"><span>KROGER 2% MILK 1GAL</span><span class="leader"></span><span>3.49</span></div>
+              <div class="sub"><span>AISLE 12</span></div>
+            </div>
+            <div class="price">
+              <div class="line"><span>S.TRUTH LG EGGS 12CT</span><span class="leader"></span><span>4.29</span></div>
+              <div class="sub"><span>AISLE 9</span><span class="sale-tag">SALE</span></div>
+            </div>
+            <div class="price">
+              <div class="line"><span>PVT SEL SOURDOUGH</span><span class="leader"></span><span>3.99</span></div>
+              <div class="sub"><span>BAKERY</span></div>
+            </div>
+          </div>
+          <hr class="rule">
+          <div class="total"><span>3 ITEMS</span><span>SUBTOTAL 11.77</span></div>
+          <p><strong>YOU&gt;</strong> yes</p>
+          <div class="call"><div class="line"><span>› add_to_cart</span><span class="leader"></span><span>ADDED</span></div></div>
+          <hr class="rule">
+          <div class="total"><span>CHECKOUT</span><span>YOU, IN THE APP</span></div>
+          <p class="footnote">** illustrative · prices come live from your store **</p>
+        </div>
+        <div class="receipt-edge" aria-hidden="true"></div>
+      </figure>
+    </section>
 
-      <div class="callout">
-        <strong>It can't check out.</strong> Kroger's public API can only add to a cart. It can't read the cart, remove items, see past orders or place an order, so you finish on the store's website or app.
+    <section class="wrap section aisles-section" aria-labelledby="get">
+      <div class="stack">
+        <div class="heading">
+          <p class="eyebrow">What you get</p>
+          <h2 class="display" id="get">Four aisles, one cart.</h2>
+        </div>
+        <div class="aisles">
+          <article class="aisle">
+            <div class="sign"><span>AISLE</span><span class="num">01</span></div>
+            <div class="body">
+              <h3>Stores</h3>
+              <p>Find stores by zip or coordinates, filter by chain and department, and save a default.</p>
+              <p class="tools">search_locations · set_preferred_location</p>
+            </div>
+          </article>
+          <article class="aisle">
+            <div class="sign"><span>AISLE</span><span class="num">02</span></div>
+            <div class="body">
+              <h3>Products</h3>
+              <p>Search by term or brand. Scoped to your store, results add price, promos, stock and aisle.</p>
+              <p class="tools">search_products · get_product</p>
+            </div>
+          </article>
+          <article class="aisle">
+            <div class="sign"><span>AISLE</span><span class="num">03</span></div>
+            <div class="body">
+              <h3>Cart</h3>
+              <p>Add items for pickup or delivery once you link your Kroger shopping account.</p>
+              <p class="tools">kroger_login · add_to_cart</p>
+            </div>
+          </article>
+          <article class="aisle">
+            <div class="sign"><span>AISLE</span><span class="num">04</span></div>
+            <div class="body">
+              <h3>Your server</h3>
+              <p>A Go server in Docker, over Streamable HTTP, with optional OAuth on the endpoint.</p>
+              <p class="tools">amd64 · arm64 · GPL-3.0</p>
+            </div>
+          </article>
+        </div>
       </div>
-    </div>
+    </section>
+
+    <section class="band" aria-labelledby="tools">
+      <div class="wrap ledger-row">
+        <div class="ledger-intro">
+          <p class="eyebrow">Tools</p>
+          <h2 class="display" id="tools">Everything on the list.</h2>
+          <p class="muted">Ten MCP tools, grouped the way you shop. Claude picks them; you just ask for groceries.</p>
+        </div>
+        <div class="ledger">
+          <section aria-labelledby="t-stores">
+            <h3 id="t-stores">STORES</h3>
+            <ul>
+              <li><code>search_locations</code><span class="leader" aria-hidden="true"></span><span class="desc">Find stores by zip code, coordinates or id.</span></li>
+              <li><code>get_location</code><span class="leader" aria-hidden="true"></span><span class="desc">Get one store.</span></li>
+              <li><code>set_preferred_location</code><span class="leader" aria-hidden="true"></span><span class="desc">Save a default store.</span></li>
+              <li><code>list_chains</code><span class="leader" aria-hidden="true"></span><span class="desc">List chains, or look one up.</span></li>
+              <li><code>list_departments</code><span class="leader" aria-hidden="true"></span><span class="desc">List departments, or look one up.</span></li>
+            </ul>
+          </section>
+          <section aria-labelledby="t-products">
+            <h3 id="t-products">PRODUCTS</h3>
+            <ul>
+              <li><code>search_products</code><span class="leader" aria-hidden="true"></span><span class="desc">Search by term, brand or product ids.</span></li>
+              <li><code>get_product</code><span class="leader" aria-hidden="true"></span><span class="desc">Get one product by product id or UPC.</span></li>
+            </ul>
+          </section>
+          <section aria-labelledby="t-account">
+            <h3 id="t-account">ACCOUNT</h3>
+            <ul>
+              <li><code>kroger_login</code><span class="leader" aria-hidden="true"></span><span class="desc">Get a single-use URL to link your shopping account.</span></li>
+              <li><code>kroger_auth_status</code><span class="leader" aria-hidden="true"></span><span class="desc">Check the linked account and default store.</span></li>
+            </ul>
+          </section>
+          <section aria-labelledby="t-cart">
+            <h3 id="t-cart">CART</h3>
+            <ul>
+              <li><code>add_to_cart</code><span class="leader" aria-hidden="true"></span><span class="desc">Add items to your cart by UPC.</span></li>
+            </ul>
+          </section>
+        </div>
+      </div>
+    </section>
+
+    <section class="wrap section">
+      <div class="stamp-notice">
+        <div class="stamp" aria-hidden="true">PAY AT<br>REGISTER</div>
+        <div class="copy">
+          <h2 class="display">It fills the cart. You check out.</h2>
+          <p>Kroger's public API can only add to a cart. It can't read the cart, remove items, see past orders or place an order, so you finish on the store's website or app.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="cta" aria-labelledby="cta">
+      <div class="wrap">
+        <div class="copy">
+          <h2 class="display" id="cta">Ten minutes to your first cart.</h2>
+          <p>You need Docker, a Kroger shopping account and a free Kroger developer app.</p>
+        </div>
+        <div class="act">
+          <a class="button light" href="setup.html">Set it up
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+          <code>$ docker compose up -d</code>
+        </div>
+      </div>
+    </section>
   </main>
+
   <footer class="site">
     <div class="wrap">
-      <p class="links">
+      <p class="thanks">— THANK YOU FOR SHOPPING —</p>
+      <hr class="rule">
+      <nav aria-label="Footer">
         <a href="https://github.com/philosowaffle/kroger-mcp">GitHub</a>
         <a href="https://buymeacoffee.com/philosowaffle">Buy me a coffee</a>
         <a href="https://github.com/philosowaffle/kroger-mcp/blob/main/SECURITY.md">Report a vulnerability</a>
-      </p>
-      <p>Built with substantial help from an AI coding assistant (Claude Code). The maintainer reviews every change, and the server is covered by end-to-end and integration tests.</p>
-      <p>kroger-mcp is an independent, unofficial project. It is not affiliated with, endorsed by, or sponsored by The Kroger Co. or any of its banners. &ldquo;Kroger&rdquo; and the banner names are trademarks of their respective owners, used only to describe what the software works with.</p>
-      <p>Licensed under <a href="https://github.com/philosowaffle/kroger-mcp/blob/main/LICENSE">GPL-3.0</a>.</p>
+        <a href="https://github.com/philosowaffle/kroger-mcp/blob/main/LICENSE">GPL-3.0</a>
+      </nav>
+      <div class="fine">
+        <p>Built with substantial help from an AI coding assistant (Claude Code). The maintainer reviews every change, and the server is covered by end-to-end and integration tests.</p>
+        <p>kroger-mcp is an independent, unofficial project. It is not affiliated with, endorsed by, or sponsored by The Kroger Co. or any of its banners. &ldquo;Kroger&rdquo; and the banner names are trademarks of their respective owners, used only to describe what the software works with.</p>
+      </div>
     </div>
   </footer>
 </body>

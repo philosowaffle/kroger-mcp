@@ -6,6 +6,7 @@
   <title>Set up kroger-mcp</title>
   <meta name="description" content="Create a Kroger developer app, run kroger-mcp in Docker, connect Claude and link your Kroger shopping account.">
   <meta name="color-scheme" content="light dark">
+  <link rel="preload" href="fonts/archivo-latin-wdth-wght.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="style.css">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <meta property="og:type" content="website">
@@ -21,71 +22,151 @@
 <body>
   <header class="site">
     <div class="wrap">
-      <a class="brand" href="./">🛒 kroger-mcp</a>
-      <nav>
-        <a href="./">Home</a>
+      <a class="brand" href="./">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4h2.5l2.2 10.2a1.5 1.5 0 0 0 1.5 1.2h8.4a1.5 1.5 0 0 0 1.5-1.1L21 8H6.3"/><circle cx="9.5" cy="19.5" r="1.3"/><circle cx="17" cy="19.5" r="1.3"/></svg>
+        kroger-mcp
+      </a>
+      <nav class="main" aria-label="Main">
         <a href="setup.html" aria-current="page">Setup</a>
         <a href="security.html">Security</a>
-        <a href="https://github.com/philosowaffle/kroger-mcp">GitHub</a>
+        <a class="pill" href="https://github.com/philosowaffle/kroger-mcp">GitHub</a>
       </nav>
     </div>
   </header>
+
   <main>
-    <div class="wrap">
-      <h1>Set up kroger-mcp</h1>
-      <p>You need Docker, a Kroger shopping account and about ten minutes. These steps run the server on your own machine for Claude Code. To use it from claude.ai, the desktop app or your phone, see <a href="#hosting">Hosting it for other devices</a>.</p>
-
-      <ol class="steps">
-        <li>
-          <h2>Create a Kroger developer app</h2>
-          <p>Sign up at <a href="https://developer.kroger.com">developer.kroger.com</a>. This developer account is separate from your shopping account.</p>
-          <p>Open <strong>My Apps → Create App</strong> and give the app the <strong>Product</strong>, <strong>Cart</strong>, <strong>Profile</strong> and <strong>Locations</strong> APIs. Add this redirect URI:</p>
-          <pre><code>http://localhost:8080/kroger/callback</code></pre>
-          <p>Then copy the app's <strong>Client ID</strong> and <strong>Client Secret</strong>.</p>
-        </li>
-        <li>
-          <h2>Configure</h2>
-          <p>Download <a href="https://github.com/philosowaffle/kroger-mcp/blob/main/docker-compose.yml">docker-compose.yml</a> into a new folder and create a <code>.env</code> file next to it:</p>
-          <pre><code>KROGER_CLIENT_ID=your-client-id
-KROGER_CLIENT_SECRET=your-client-secret</code></pre>
-        </li>
-        <li>
-          <h2>Run it</h2>
-          <pre><code>docker compose up -d</code></pre>
-          <p>This pulls <code>ghcr.io/philosowaffle/kroger-mcp:latest</code> (amd64 and arm64) and keeps the linked account's tokens in a Docker volume. The sample file only listens on <code>127.0.0.1</code>.</p>
-        </li>
-        <li>
-          <h2>Connect Claude</h2>
-          <pre><code>claude mcp add --transport http kroger http://localhost:8080</code></pre>
-        </li>
-        <li>
-          <h2>Link your Kroger account</h2>
-          <p>Ask Claude to &ldquo;link my Kroger account&rdquo;. Open the URL it gives you, sign in with your <strong>shopping</strong> account and approve. Kroger sends you back to the server, which stores and refreshes the tokens. A link lasts about six months.</p>
-          <p>Then ask Claude to find your store and make it your default, and you're ready to shop.</p>
-        </li>
-      </ol>
-
-      <h2 id="hosting">Hosting it for other devices</h2>
-      <p>claude.ai, the desktop app and the mobile apps connect from Anthropic's servers, so they need a public HTTPS URL for the server. Before you expose it:</p>
-      <ul>
-        <li>Turn on MCP auth with your own identity provider (for example Authelia), so only you can use the server. See <a href="security.html">Security</a>.</li>
-        <li>Register <code>https://your-host/kroger/callback</code> as a redirect URI on the Kroger app and set <code>KROGER_REDIRECT_URI</code> to match it exactly.</li>
-        <li>Add a custom connector in Claude pointing at your server's URL.</li>
+    <div class="wrap page-head">
+      <p class="eyebrow">Setup · about ten minutes</p>
+      <h1 class="display page-title">Set up kroger-mcp</h1>
+      <p class="lede">These steps run the server on your own machine for Claude Code. To use it from claude.ai, the desktop app or your phone, see <a href="#hosting">Hosting it for other devices</a>.</p>
+      <ul class="pills" aria-label="You need">
+        <li>Docker</li>
+        <li>Kroger shopping account</li>
+        <li>Kroger developer app (free)</li>
       </ul>
-      <p>The full configuration reference is in the <a href="https://github.com/philosowaffle/kroger-mcp#configuration">README</a>, and identity provider setup is in <a href="https://github.com/philosowaffle/kroger-mcp/blob/main/docs/authentication.md">docs/authentication.md</a>.</p>
+    </div>
+
+    <div class="wrap setup-body">
+      <nav class="steps-nav" aria-label="Steps">
+        <p class="title">YOUR LIST</p>
+        <a href="#step-1"><span>01</span><span>Kroger developer app</span></a>
+        <a href="#step-2"><span>02</span><span>Configure</span></a>
+        <a href="#step-3"><span>03</span><span>Run it</span></a>
+        <a href="#step-4"><span>04</span><span>Connect Claude</span></a>
+        <a href="#step-5"><span>05</span><span>Link your account</span></a>
+        <a class="extra" href="#hosting"><span>+</span><span>Other devices</span></a>
+      </nav>
+
+      <div class="setup-content">
+        <ol class="steps">
+          <li id="step-1">
+            <span class="step-num" aria-hidden="true">01</span>
+            <div class="step-body">
+              <h2>Create a Kroger developer app</h2>
+              <p>Sign up at <a href="https://developer.kroger.com">developer.kroger.com</a>. This developer account is separate from your shopping account.</p>
+              <p>Open <strong>My Apps → Create App</strong> and give the app the <strong>Product</strong>, <strong>Cart</strong>, <strong>Profile</strong> and <strong>Locations</strong> APIs. Add this redirect URI:</p>
+              <div class="codeblock">
+                <div class="label"><span>REDIRECT URI</span></div>
+                <pre><code>http://localhost:8080/kroger/callback</code></pre>
+              </div>
+              <p>Then copy the app's <strong>Client ID</strong> and <strong>Client Secret</strong>.</p>
+            </div>
+          </li>
+          <li id="step-2">
+            <span class="step-num" aria-hidden="true">02</span>
+            <div class="step-body">
+              <h2>Configure</h2>
+              <p>Download <a href="https://github.com/philosowaffle/kroger-mcp/blob/main/docker-compose.yml">docker-compose.yml</a> into a new folder and create a <code>.env</code> file next to it:</p>
+              <div class="codeblock">
+                <div class="label"><span>.ENV</span></div>
+                <pre><code><span class="key">KROGER_CLIENT_ID</span>=your-client-id
+<span class="key">KROGER_CLIENT_SECRET</span>=your-client-secret</code></pre>
+              </div>
+            </div>
+          </li>
+          <li id="step-3">
+            <span class="step-num" aria-hidden="true">03</span>
+            <div class="step-body">
+              <h2>Run it</h2>
+              <div class="codeblock">
+                <div class="label"><span>TERMINAL</span></div>
+                <pre><code><span class="prompt">$ </span>docker compose up -d</code></pre>
+              </div>
+              <p>This pulls <code>ghcr.io/philosowaffle/kroger-mcp:latest</code> (amd64 and arm64) and keeps the linked account's tokens in a Docker volume. The sample file only listens on <code>127.0.0.1</code>.</p>
+            </div>
+          </li>
+          <li id="step-4">
+            <span class="step-num" aria-hidden="true">04</span>
+            <div class="step-body">
+              <h2>Connect Claude</h2>
+              <div class="codeblock">
+                <div class="label"><span>TERMINAL</span></div>
+                <pre><code><span class="prompt">$ </span>claude mcp add --transport http kroger http://localhost:8080</code></pre>
+              </div>
+            </div>
+          </li>
+          <li id="step-5">
+            <span class="step-num finish" aria-hidden="true">05</span>
+            <div class="step-body">
+              <h2>Link your Kroger account</h2>
+              <p>Ask Claude to &ldquo;link my Kroger account&rdquo;. Open the URL it gives you, sign in with your <strong>shopping</strong> account and approve. Kroger sends you back to the server, which stores and refreshes the tokens. A link lasts about six months.</p>
+              <p class="finish-note">Then ask Claude to find your store and make it your default, and you're ready to shop.</p>
+            </div>
+          </li>
+        </ol>
+
+        <section class="panel" id="hosting" aria-labelledby="hosting-title">
+          <p class="eyebrow">Optional</p>
+          <h2 class="display" id="hosting-title">Hosting it for other devices</h2>
+          <p>claude.ai, the desktop app and the mobile apps connect from Anthropic's servers, so they need a public HTTPS URL for the server. Before you expose it:</p>
+          <ul>
+            <li>Turn on MCP auth with your own identity provider (for example Authelia), so only you can use the server. See <a href="security.html">Security</a>.</li>
+            <li>Register <code>https://your-host/kroger/callback</code> as a redirect URI on the Kroger app and set <code>KROGER_REDIRECT_URI</code> to match it exactly.</li>
+            <li>Add a custom connector in Claude pointing at your server's URL.</li>
+          </ul>
+          <p class="muted">The full configuration reference is in the <a href="https://github.com/philosowaffle/kroger-mcp#configuration">README</a>, and identity provider setup is in <a href="https://github.com/philosowaffle/kroger-mcp/blob/main/docs/authentication.md">docs/authentication.md</a>.</p>
+        </section>
+      </div>
     </div>
   </main>
-  <footer class="site">
+
+  <footer class="site short">
     <div class="wrap">
-      <p class="links">
+      <nav aria-label="Footer">
         <a href="https://github.com/philosowaffle/kroger-mcp">GitHub</a>
         <a href="https://buymeacoffee.com/philosowaffle">Buy me a coffee</a>
         <a href="https://github.com/philosowaffle/kroger-mcp/blob/main/SECURITY.md">Report a vulnerability</a>
-      </p>
-      <p>Built with substantial help from an AI coding assistant (Claude Code). The maintainer reviews every change, and the server is covered by end-to-end and integration tests.</p>
-      <p>kroger-mcp is an independent, unofficial project. It is not affiliated with, endorsed by, or sponsored by The Kroger Co. or any of its banners. &ldquo;Kroger&rdquo; and the banner names are trademarks of their respective owners, used only to describe what the software works with.</p>
-      <p>Licensed under <a href="https://github.com/philosowaffle/kroger-mcp/blob/main/LICENSE">GPL-3.0</a>.</p>
+      </nav>
+      <p>Unofficial · not affiliated with The Kroger Co. ·&nbsp;<a href="https://github.com/philosowaffle/kroger-mcp/blob/main/LICENSE">GPL-3.0</a></p>
     </div>
   </footer>
+
+  <script>
+    // Copy buttons for code blocks. Without JavaScript there are none.
+    if (navigator.clipboard) {
+      document.querySelectorAll(".codeblock").forEach(function (block) {
+        var code = block.querySelector("pre code");
+        var label = block.querySelector(".label");
+        if (!code || !label) return;
+        var name = label.textContent.trim();
+        var button = document.createElement("button");
+        button.type = "button";
+        button.className = "copy";
+        button.textContent = "Copy";
+        button.setAttribute("aria-label", "Copy " + name);
+        button.addEventListener("click", function () {
+          var copy = code.cloneNode(true);
+          copy.querySelectorAll(".prompt").forEach(function (p) { p.remove(); });
+          navigator.clipboard.writeText(copy.textContent).then(function () {
+            button.textContent = "Copied";
+            setTimeout(function () { button.textContent = "Copy"; }, 1500);
+          }, function () {
+            button.textContent = "Press Ctrl+C";
+          });
+        });
+        label.appendChild(button);
+      });
+    }
+  </script>
 </body>
 </html>
