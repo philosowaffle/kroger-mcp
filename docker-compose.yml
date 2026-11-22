@@ -44,6 +44,7 @@ services:
       # KROGER_MCP_OIDC_ISSUER: "https://auth.example.com"
       # KROGER_MCP_OIDC_RESOURCE: "https://kroger-mcp.example.com"
       # KROGER_MCP_OIDC_SCOPES: "mcp"
+      # KROGER_MCP_OIDC_REQUIRE_AT_JWT: "false"  # only if your IdP omits typ at+jwt
     volumes:
       # Holds the linked Kroger account's tokens. A named volume inherits the
       # image's nonroot ownership; for a bind mount, chown the host directory

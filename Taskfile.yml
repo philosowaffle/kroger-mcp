@@ -1,7 +1,10 @@
 version: "3"
 
 vars:
-  PKG: github.com/philosowaffle/kroger-mcp/internal/server
+  # The binary and image name; keep in step with server.Name.
+  NAME: kroger-mcp
+  PKG:
+    sh: echo "$(go list -m)/internal/server"
   VERSION:
     sh: git describe --tags --always --dirty 2>/dev/null || echo dev
   COMMIT:
@@ -12,7 +15,7 @@ tasks:
   build:
     desc: Build the project binary
     cmds:
-      - go build -ldflags "{{.LDFLAGS}}" -o bin/kroger-mcp .
+      - go build -ldflags "{{.LDFLAGS}}" -o bin/{{.NAME}} .
 
   run:
     desc: Run the server locally (reads .env if present)
@@ -44,7 +47,7 @@ tasks:
   test:
     desc: Run all unit tests
     cmds:
-      - go test ./...
+      - go test -race ./...
 
   test:integration:
     desc: Run integration tests against the Kroger certification API (reads .env)
@@ -70,7 +73,7 @@ tasks:
   docker:build:
     desc: Build the Docker image
     cmds:
-      - docker build --build-arg VERSION={{.VERSION}} --build-arg COMMIT={{.COMMIT}} -t kroger-mcp .
+      - docker build --build-arg VERSION={{.VERSION}} --build-arg COMMIT={{.COMMIT}} -t {{.NAME}} .
 
   docker:up:
     desc: Start the published image via docker compose

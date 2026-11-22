@@ -13,8 +13,14 @@ import (
 	"github.com/philosowaffle/kroger-mcp/tools/products"
 )
 
-// Name identifies this server to MCP clients.
+// Name identifies this server to MCP clients, names the binary and image,
+// and is advertised as the protected-resource name when auth is on.
 const Name = "kroger-mcp"
+
+// EnvPrefix starts every variable the server reads: <EnvPrefix>_ADDR,
+// <EnvPrefix>_LOG_LEVEL, <EnvPrefix>_OIDC_*. The Kroger credentials
+// (KROGER_CLIENT_ID and friends) are package kroger's and don't use it.
+const EnvPrefix = "KROGER_MCP"
 
 // Version and Commit are set at build time with
 //

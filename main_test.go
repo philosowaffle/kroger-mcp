@@ -10,6 +10,13 @@ import (
 
 	"github.com/philosowaffle/kroger-mcp/internal/kroger"
 	"github.com/philosowaffle/kroger-mcp/internal/kroger/krogertest"
+	"github.com/philosowaffle/kroger-mcp/internal/server"
+)
+
+var (
+	issuerEnv   = server.EnvPrefix + "_OIDC_ISSUER"
+	resourceEnv = server.EnvPrefix + "_OIDC_RESOURCE"
+	scopesEnv   = server.EnvPrefix + "_OIDC_SCOPES"
 )
 
 func newKrogerClient(t *testing.T) *kroger.Client {
@@ -70,10 +77,10 @@ func statusWith(t *testing.T, h http.Handler, method, target string, header map[
 func TestCrossOriginRejected(t *testing.T) {
 	for _, authOn := range []bool{false, true} {
 		if authOn {
-			t.Setenv("KROGER_MCP_OIDC_ISSUER", fakeIssuer(t))
-			t.Setenv("KROGER_MCP_OIDC_RESOURCE", "https://kroger-mcp.example.com")
+			t.Setenv(issuerEnv, fakeIssuer(t))
+			t.Setenv(resourceEnv, "https://kroger-mcp.example.com")
 		} else {
-			t.Setenv("KROGER_MCP_OIDC_ISSUER", "")
+			t.Setenv(issuerEnv, "")
 		}
 		h, err := newHandler(context.Background(), newKrogerClient(t))
 		if err != nil {
@@ -101,9 +108,9 @@ func TestCrossOriginRejected(t *testing.T) {
 
 func TestRoutesWithAuth(t *testing.T) {
 	issuer := fakeIssuer(t)
-	t.Setenv("KROGER_MCP_OIDC_ISSUER", issuer)
-	t.Setenv("KROGER_MCP_OIDC_RESOURCE", "https://kroger-mcp.example.com")
-	t.Setenv("KROGER_MCP_OIDC_SCOPES", "")
+	t.Setenv(issuerEnv, issuer)
+	t.Setenv(resourceEnv, "https://kroger-mcp.example.com")
+	t.Setenv(scopesEnv, "")
 
 	h, err := newHandler(context.Background(), newKrogerClient(t))
 	if err != nil {
@@ -138,7 +145,7 @@ func TestRoutesWithAuth(t *testing.T) {
 }
 
 func TestRoutesWithoutAuth(t *testing.T) {
-	t.Setenv("KROGER_MCP_OIDC_ISSUER", "")
+	t.Setenv(issuerEnv, "")
 
 	h, err := newHandler(context.Background(), newKrogerClient(t))
 	if err != nil {
@@ -153,8 +160,8 @@ func TestRoutesWithoutAuth(t *testing.T) {
 }
 
 func TestAuthMisconfigured(t *testing.T) {
-	t.Setenv("KROGER_MCP_OIDC_ISSUER", "http://127.0.0.1:1")
-	t.Setenv("KROGER_MCP_OIDC_RESOURCE", "")
+	t.Setenv(issuerEnv, "http://127.0.0.1:1")
+	t.Setenv(resourceEnv, "")
 	if _, err := newHandler(context.Background(), newKrogerClient(t)); err == nil {
 		t.Fatal("want error when resource is missing")
 	}
@@ -218,7 +225,7 @@ func TestCheckExposure_AuthOffNonLoopback(t *testing.T) {
 // TestRun_RefusesUnauthenticatedExposure checks the guard runs at start-up,
 // before anything listens.
 func TestRun_RefusesUnauthenticatedExposure(t *testing.T) {
-	t.Setenv("KROGER_MCP_OIDC_ISSUER", "")
+	t.Setenv(issuerEnv, "")
 	t.Setenv(allowUnauthEnv, "")
 	err := run(":0")
 	if err == nil || !strings.Contains(err.Error(), "refusing to listen") {
@@ -231,7 +238,7 @@ func TestRun_RefusesUnauthenticatedExposure(t *testing.T) {
 // 2025-11-25 protocol. go-sdk rejects such calls on a stateful handler with
 // "protocol version \"2025-11-25\" is not supported by this server".
 func TestToolCallWithProtocolVersionMeta(t *testing.T) {
-	t.Setenv("KROGER_MCP_OIDC_ISSUER", "")
+	t.Setenv(issuerEnv, "")
 	h, err := newHandler(context.Background(), newKrogerClient(t))
 	if err != nil {
 		t.Fatal(err)

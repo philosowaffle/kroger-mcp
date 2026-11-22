@@ -15,8 +15,9 @@ COPY . .
 # Declared after the module download so changing them keeps that layer cached.
 ARG VERSION=dev
 ARG COMMIT=unknown
-RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath \
-      -ldflags="-s -w -X github.com/philosowaffle/kroger-mcp/internal/server.Version=${VERSION} -X github.com/philosowaffle/kroger-mcp/internal/server.Commit=${COMMIT}" \
+RUN pkg="$(go list -m)/internal/server" \
+    && CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath \
+      -ldflags="-s -w -X ${pkg}.Version=${VERSION} -X ${pkg}.Commit=${COMMIT}" \
       -o /out/kroger-mcp . \
     && mkdir -p /out/data
 

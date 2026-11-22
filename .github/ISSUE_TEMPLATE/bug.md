@@ -5,39 +5,14 @@ title: "fix: "
 labels: fix
 ---
 
-## Problem Statement / Motivation
+## Problem
 
-**Describe the bug:**
-[What is happening? What did you expect to happen?]
+What happens, what you expected, and how to reproduce it (steps, version, config).
 
-**Steps to reproduce:**
-1.
-2.
-3.
+## Proposed Solution
 
-**Environment:**
-[Go version, OS, relevant config, etc.]
-
-## Hypothesis / Proposed Solution
-
-[What do you think is causing this? What's the proposed fix?]
+The likely cause and the fix, if known.
 
 ## Acceptance Criteria
 
-- [ ] Bug can be reliably reproduced
-- [ ] [Specific, testable condition confirming the fix]
-- [ ] No regression in related functionality
-
-## Blocking / Blocked By
-
-[Set native GitHub block relationships above. Document any context here if helpful.]
-
-## Checklist
-
-- [ ] Bug reproduced and documented
-- [ ] Failing test written
-- [ ] Fix implemented
-- [ ] Fix verified — all tests passing
-- [ ] Regression test added
-- [ ] Docs updated if needed
-- [ ] `tmp/` deleted before merge
+- [ ] A test reproduces the bug and passes with the fix

@@ -1,7 +1,8 @@
-# Build output
-bin/
+# Build output (`go build` in the repo root writes the binary here)
 /kroger-mcp
 /kroger-mcp.exe
+bin/
+dist/
 
 # Runtime state — holds the linked Kroger account's tokens, never commit
 data/
@@ -12,12 +13,15 @@ data/
 # Environment files
 *.env
 .env*
-
-# In-progress working notes (must be deleted before PR merge)
-tmp/
+!.env.example
 
 # Claude Code local overrides (user-specific, never commit)
 .claude/settings.local.json
+
+# Go test and coverage output
+*.test
+*.out
+coverage.*
 
 # OS / editor noise
 .DS_Store

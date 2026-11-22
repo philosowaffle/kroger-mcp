@@ -16,22 +16,23 @@
   "hooks": {
     "PostToolUse": [
       {
-        "matcher": "Write(*.go)",
+        "matcher": "Edit|Write|MultiEdit",
         "hooks": [
           {
             "type": "command",
-            "command": "gofmt -w \"$CLAUDE_TOOL_WRITE_FILE_PATH\""
+            "command": "go fmt ./... >/dev/null 2>&1 || true"
           }
         ]
       }
     ],
     "PreToolUse": [
       {
-        "matcher": "Bash(git push*)",
+        "matcher": "Bash",
         "hooks": [
           {
             "type": "command",
-            "command": "branch=$(git rev-parse --abbrev-ref HEAD); if [ \"$branch\" = \"main\" ]; then echo 'Direct push to main is not allowed. Open a PR instead.' && exit 2; fi"
+            "if": "Bash(git push *)",
+            "command": "if [ \"$(git rev-parse --abbrev-ref HEAD)\" = \"main\" ]; then echo 'Direct push to main is not allowed. Open a PR instead.' >&2; exit 2; fi"
           }
         ]
       }
