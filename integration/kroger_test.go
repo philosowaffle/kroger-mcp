@@ -25,8 +25,8 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/philosowaffle/kroger-cart/internal/kroger"
-	"github.com/philosowaffle/kroger-cart/internal/server"
+	"github.com/philosowaffle/kroger-mcp/internal/kroger"
+	"github.com/philosowaffle/kroger-mcp/internal/server"
 )
 
 func env(key, def string) string {

@@ -6,7 +6,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/philosowaffle/kroger-cart/internal/kroger"
+	"github.com/philosowaffle/kroger-mcp/internal/kroger"
 )
 
 // Item is one line to add.

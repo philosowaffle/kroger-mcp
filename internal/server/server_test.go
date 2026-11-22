@@ -10,8 +10,8 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/philosowaffle/kroger-cart/internal/kroger"
-	"github.com/philosowaffle/kroger-cart/internal/kroger/krogertest"
+	"github.com/philosowaffle/kroger-mcp/internal/kroger"
+	"github.com/philosowaffle/kroger-mcp/internal/kroger/krogertest"
 )
 
 type harness struct {

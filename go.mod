@@ -1,4 +1,4 @@
-module github.com/philosowaffle/kroger-cart
+module github.com/philosowaffle/kroger-mcp
 
 go 1.26.0
 
