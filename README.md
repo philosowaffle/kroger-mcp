@@ -16,6 +16,9 @@ Fred Meyer, Fry's, Smith's and other Kroger banners.
 > **Unofficial.** kroger-mcp is not affiliated with or endorsed by The Kroger Co.
 > See [Disclaimer](#disclaimer).
 
+**Website:** [philosowaffle.github.io/kroger-mcp](https://philosowaffle.github.io/kroger-mcp/),
+with a [step-by-step setup guide](https://philosowaffle.github.io/kroger-mcp/setup.html).
+
 ## What it looks like
 
 > **You:** Make the King Soopers near zipcode 12345 my store, then add a gallon of 2% milk,
@@ -195,3 +198,7 @@ developer terms, which govern every API call the server makes on their behalf.
 GNU General Public License v3.0.
 
 Report vulnerabilities privately, as described in [SECURITY.md](SECURITY.md).
+
+[Website](https://philosowaffle.github.io/kroger-mcp/) ·
+[Setup guide](https://philosowaffle.github.io/kroger-mcp/setup.html) ·
+[Security](https://philosowaffle.github.io/kroger-mcp/security.html)

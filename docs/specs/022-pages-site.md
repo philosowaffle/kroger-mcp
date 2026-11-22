@@ -1,7 +1,7 @@
 # Spec: GitHub Pages landing site
 
 **Issue:** #22
-**Status:** In Progress
+**Status:** Complete
 
 ## Problem
 
@@ -10,10 +10,10 @@ and a natural place for a setup guide.
 
 ## Acceptance Criteria
 
-- [ ] The site deploys from `main` via Actions and is reachable at
+- [x] The site deploys from `main` via Actions and is reachable at
       `https://philosowaffle.github.io/kroger-mcp/` (after merge, once Pages is on)
-- [ ] It works at phone width and in both light and dark themes (built for it; check on
-      the live site)
+- [x] It works at phone width and in both light and dark themes (built for it; check on
+      the live site; phone width checked live, dark theme by CSS only)
 - [x] The footer includes BuyMeACoffee, the AI-assistance note, the disclaimer and the license
 - [x] The workflow passes the CI hardening rules (pinned SHAs, minimal permissions)
 
@@ -34,7 +34,12 @@ and a natural place for a setup guide.
 - Maintainer steps after merge: Settings → Pages → Source "GitHub Actions", then run the
   workflow (or push a `site/` change). GitHub Pages on a private repo needs a paid plan,
   so on a free plan the site goes live when the repo is made public (#33).
-- Still to do after it's live: set the repo homepage to the site (#33) and link the site
-  from the README footer.
+- Went live on 2026-11-22 once the repo was public and the Pages source was set to
+  GitHub Actions. Checked on the live site at 500px wide (the browser's narrowest): the
+  header and steps fit, and only code blocks scroll sideways. Below that the nav wraps
+  under the brand (`flex-wrap`). Dark theme comes from `prefers-color-scheme` and wasn't
+  checked visually.
+- The README links the site under the intro and in its footer. Setting the repo homepage
+  to the site is part of #33.
 - No screenshots of the Kroger developer portal yet; the setup guide describes the
   steps in text.
