@@ -12,7 +12,8 @@ and a natural place for a setup guide.
 
 - [ ] The site deploys from `main` via Actions and is reachable at
       `https://philosowaffle.github.io/kroger-mcp/` (after merge, once Pages is on)
-- [x] It works at phone width and in both light and dark themes
+- [ ] It works at phone width and in both light and dark themes (built for it; check on
+      the live site)
 - [x] The footer includes BuyMeACoffee, the AI-assistance note, the disclaimer and the license
 - [x] The workflow passes the CI hardening rules (pinned SHAs, minimal permissions)
 
