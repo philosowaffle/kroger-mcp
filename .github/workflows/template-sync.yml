@@ -1,0 +1,116 @@
+name: Template sync
+
+# Weekly, files (or refreshes) one `template-sync` issue when go-mcp-template has
+# moved past the commit in .template-version. The issue lists the shared files that
+# changed and how to apply them; it is meant to be picked up and turned into a PR.
+on:
+  schedule:
+    # Mondays 12:23 UTC.
+    - cron: "23 12 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+env:
+  TEMPLATE_REPO: philosowaffle/go-mcp-template
+
+jobs:
+  check:
+    # The template doesn't sync with itself.
+    if: github.repository != 'philosowaffle/go-mcp-template'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Compare with the template and file an issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          # Reading a private template needs a fine-grained token with Contents: read
+          # on it. A public template needs no secret.
+          TEMPLATE_TOKEN: ${{ secrets.TEMPLATE_READ_TOKEN || github.token }}
+        run: |
+          set -euo pipefail
+          tapi() { GH_TOKEN="$TEMPLATE_TOKEN" gh api "$@"; }
+
+          if ! latest=$(tapi "repos/$TEMPLATE_REPO/commits/main" --jq .sha); then
+            echo "::error::Can't read $TEMPLATE_REPO. Add a TEMPLATE_READ_TOKEN secret (fine-grained token, Contents: read on the template)."
+            exit 1
+          fi
+          current=$({ tr -d '[:space:]' < .template-version; } 2>/dev/null || true)
+          if [ "$current" = "$latest" ]; then
+            echo "Up to date with $TEMPLATE_REPO@$latest"
+            exit 0
+          fi
+
+          manifest=$(tapi -H "Accept: application/vnd.github.raw+json" \
+            "repos/$TEMPLATE_REPO/contents/.github/template-manifest?ref=$latest" \
+            | grep -vE '^[[:space:]]*(#|$)')
+          changed=""
+          if [ -n "$current" ]; then
+            changed=$(tapi "repos/$TEMPLATE_REPO/compare/$current...$latest" \
+              --jq '.files[] | "\(.status) \(.filename)"')
+          fi
+
+          rows=""
+          while read -r kind path; do
+            case "$kind" in
+              owned|seeded)
+                if [ -z "$current" ]; then
+                  change=adopt
+                else
+                  change=$(awk -v p="$path" '$2 == p { print $1; exit }' <<< "$changed")
+                  [ -n "$change" ] || continue
+                fi
+                ;;
+              retired)
+                [ -e "$path" ] || continue
+                change=delete
+                ;;
+              *) continue ;;
+            esac
+            rows+="| \`$path\` | $kind | $change |"$'\n'
+          done <<< "$manifest"
+
+          if [ -z "$rows" ]; then
+            echo "The template moved, but no shared file changed."
+            exit 0
+          fi
+
+          instructions=$(tapi -H "Accept: application/vnd.github.raw+json" \
+            "repos/$TEMPLATE_REPO/contents/.github/template-sync.md?ref=$latest")
+          instructions=${instructions//'{{SHA}}'/$latest}
+          instructions=${instructions//'{{TEMPLATE_REPO}}'/$TEMPLATE_REPO}
+
+          if [ -n "$current" ]; then
+            range="The template moved from \`${current:0:7}\` to \`${latest:0:7}\` ([compare](https://github.com/$TEMPLATE_REPO/compare/$current...$latest))."
+          else
+            range="This repo has no \`.template-version\` yet, so this is its first sync, to \`${latest:0:7}\`."
+          fi
+
+          {
+            echo "$range"
+            echo
+            echo "| File | Kind | Change |"
+            echo "| ---- | ---- | ------ |"
+            printf '%s' "$rows"
+            echo
+            echo "$instructions"
+          } > "$RUNNER_TEMP/body.md"
+
+          title="chore: sync with go-mcp-template (${latest:0:7})"
+          gh label create template-sync --color 0e8a16 \
+            --description "Apply changes from go-mcp-template" 2>/dev/null || true
+          gh label create chore --color cfd3d7 \
+            --description "Maintenance, dependencies, tooling" 2>/dev/null || true
+
+          existing=$(gh issue list --label template-sync --state open --json number --jq '.[0].number // empty')
+          if [ -n "$existing" ]; then
+            gh issue edit "$existing" --title "$title" --body-file "$RUNNER_TEMP/body.md"
+            echo "Updated #$existing"
+          else
+            gh issue create --title "$title" --label chore --label template-sync \
+              --body-file "$RUNNER_TEMP/body.md"
+          fi
