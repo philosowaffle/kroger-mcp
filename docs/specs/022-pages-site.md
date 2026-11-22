@@ -31,6 +31,9 @@ and a natural place for a setup guide.
   workflow, and on manual dispatch. `permissions: contents: read` at the top; only the
   deploy job gets `pages: write` and `id-token: write`. Actions are pinned to SHAs:
   configure-pages v6.0.0, upload-pages-artifact v5.0.0, deploy-pages v5.0.1.
+- The build job only runs once the repo is public (`!github.event.repository.private`, as
+  CodeQL and attestations do), so main stays green while Pages is off. Its first run
+  failed at configure-pages because Pages wasn't enabled.
 - Maintainer steps after merge: Settings → Pages → Source "GitHub Actions", then run the
   workflow (or push a `site/` change). GitHub Pages on a private repo needs a paid plan,
   so on a free plan the site goes live when the repo is made public (#33).

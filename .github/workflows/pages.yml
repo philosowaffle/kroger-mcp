@@ -1,7 +1,9 @@
 name: Pages
 
 # Publishes the static site in site/ to GitHub Pages. Needs Pages turned on with
-# "GitHub Actions" as the source (Settings → Pages).
+# "GitHub Actions" as the source (Settings → Pages). Pages can't serve a private
+# repo on a free plan, so this waits until the repo is public (#33) instead of
+# failing every push to main.
 on:
   push:
     branches: [main]
@@ -19,6 +21,7 @@ concurrency:
 
 jobs:
   build:
+    if: ${{ !github.event.repository.private }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
