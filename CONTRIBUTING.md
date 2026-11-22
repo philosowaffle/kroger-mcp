@@ -23,8 +23,8 @@ You don't need Kroger credentials to build or run the unit tests.
 ## Getting started
 
 ```sh
-git clone https://github.com/philosowaffle/kroger-cart.git
-cd kroger-cart
+git clone https://github.com/philosowaffle/kroger-mcp.git
+cd kroger-mcp
 task ci    # format check, vet, lint, build, unit tests: what PR Checks runs
 ```
 

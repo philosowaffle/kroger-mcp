@@ -20,7 +20,7 @@ them before reporting.
 **Don't open a public issue, discussion or pull request for a vulnerability.**
 
 Report it privately through GitHub's
-[security advisory form](https://github.com/philosowaffle/kroger-cart/security/advisories/new)
+[security advisory form](https://github.com/philosowaffle/kroger-mcp/security/advisories/new)
 (**Security → Report a vulnerability**). Please include:
 
 - what an attacker can do, and what they need first (network access, a valid MCP
