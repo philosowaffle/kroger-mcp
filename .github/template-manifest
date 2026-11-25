@@ -29,6 +29,8 @@ owned internal/health/health.go
 owned internal/health/health_test.go
 owned internal/logging/logging.go
 owned internal/logging/logging_test.go
+owned internal/telemetry/telemetry.go
+owned internal/telemetry/telemetry_test.go
 
 seeded CLAUDE.md
 seeded .github/workflows/pr-checks.yml

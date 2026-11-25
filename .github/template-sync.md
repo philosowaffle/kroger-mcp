@@ -18,12 +18,16 @@ are at `https://github.com/{{TEMPLATE_REPO}}/tree/{{SHA}}`.
      compose, `release.yml`), keep this repo's version and its extra services, tools
      and steps. Take only the shared behaviour the template's version adds, and the
      calls the owned packages now need (`auth.ConfigFromEnv(server.Name,
-     server.EnvPrefix)`, `logging.Setup(server.EnvPrefix)`), adding `Name` and
-     `EnvPrefix` to `internal/server` if they're missing. Keep the repo's env variable
+     server.EnvPrefix)`, `logging.Setup(server.EnvPrefix)`, and in `main.go`
+     `telemetry.Setup(ctx, server.Name, server.Version)` with its shutdown,
+     `telemetry.Instrument(srv)` on the MCP server and `telemetry.HTTPHandler` around
+     the MCP endpoint), adding `Name` and `EnvPrefix` to `internal/server` if they're
+     missing. Keep the repo's env variable
      names: `EnvPrefix` must match them.
 3. **retired:** delete the path, and anything that only pointed to it.
 4. Write `{{SHA}}` to `.template-version` (just the SHA and a newline).
-5. Run `task ci` and fix what breaks.
+5. Run `go mod tidy` (owned packages may import new modules), then `task ci`, and fix
+   what breaks.
 6. Open a PR titled `chore: sync with go-mcp-template`, labelled `chore`, that closes
    this issue. In its body, list anything you didn't apply and why.
 
