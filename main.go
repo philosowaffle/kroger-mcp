@@ -26,6 +26,7 @@ import (
 	"github.com/philosowaffle/kroger-mcp/internal/kroger"
 	"github.com/philosowaffle/kroger-mcp/internal/logging"
 	"github.com/philosowaffle/kroger-mcp/internal/server"
+	"github.com/philosowaffle/kroger-mcp/internal/telemetry"
 )
 
 // listenAddr defaults to loopback so a bare local run without auth is
@@ -112,6 +113,19 @@ func run(addr string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	// Off unless an OTLP endpoint is set (OTEL_EXPORTER_OTLP_ENDPOINT).
+	shutdownTelemetry, err := telemetry.Setup(ctx, server.Name, server.Version)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		sctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := shutdownTelemetry(sctx); err != nil {
+			slog.Warn("telemetry shutdown", "err", err)
+		}
+	}()
+
 	kc, err := kroger.New(kroger.ConfigFromEnv())
 	if err != nil {
 		return err
@@ -164,9 +178,11 @@ func run(addr string) error {
 //	<KROGER_REDIRECT_URI path>    Kroger OAuth callback (no auth; guarded by
 //	                              single-use state from kroger_login)
 //	/                             MCP Streamable HTTP (bearer auth when on;
-//	                              cross-origin browser requests rejected)
+//	                              cross-origin browser requests rejected;
+//	                              traced when telemetry is on)
 func newHandler(ctx context.Context, kc *kroger.Client) (http.Handler, error) {
 	srv := server.New(kc)
+	telemetry.Instrument(srv)
 	var mcpHandler http.Handler = mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server {
 		return srv
 	}, &mcp.StreamableHTTPOptions{
@@ -211,7 +227,7 @@ func newHandler(ctx context.Context, kc *kroger.Client) (http.Handler, error) {
 	// cross-origin browser requests on any address, so a web page can't drive
 	// the tools from a shopper's browser. Clients that send neither Origin nor
 	// Sec-Fetch-Site (Claude Code, claude.ai's servers) are unaffected.
-	mux.Handle("/", http.NewCrossOriginProtection().Handler(mcpHandler))
+	mux.Handle("/", telemetry.HTTPHandler(http.NewCrossOriginProtection().Handler(mcpHandler), server.Name))
 	return mux, nil
 }
 

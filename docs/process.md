@@ -37,10 +37,11 @@ CLAUDE.md under Project-Specific Notes, and win where they differ.
   refused). It won't listen beyond loopback without auth unless
   `<PREFIX>_ALLOW_UNAUTHENTICATED=true`.
 - `internal/server` is the one tool registry (`server.New()`), and holds `Name` and
-  `EnvPrefix`. Every variable the server reads starts with `EnvPrefix`.
+  `EnvPrefix`. Every variable the server reads starts with `EnvPrefix`, except the
+  standard `OTEL_*` variables that `internal/telemetry` reads.
 - `tools/<group>` holds a group of tools, registered from `server.New()`.
-- `internal/auth`, `internal/health` and `internal/logging` are shared with the
-  template: change them there.
+- `internal/auth`, `internal/health`, `internal/logging` and `internal/telemetry` are
+  shared with the template: change them there.
 - **Adding a tool:** add it under `tools/`, register it in `server.New()`, and add it
   to `TestListTools` and `TestMCPTools`.
 

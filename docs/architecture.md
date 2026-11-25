@@ -21,6 +21,7 @@ internal/kroger/krogertest/ in-process fake Kroger API used by tests
 internal/auth/              MCP-side OAuth resource server: metadata + bearer JWT validation
 internal/health/            /healthz handler + -healthcheck self-probe
 internal/logging/           slog setup with a TRACE level and KROGER_MCP_LOG_LEVEL
+internal/telemetry/         OpenTelemetry traces and metrics for every MCP call, off until an OTLP endpoint is set
 tools/account/              kroger_login, kroger_auth_status
 tools/locations/            search_locations, get_location, set_preferred_location, list_chains, list_departments
 tools/products/             search_products, get_product
@@ -109,6 +110,7 @@ price or stock).
 | `github.com/modelcontextprotocol/go-sdk`  | Official MCP SDK: server, Streamable HTTP, auth middleware  |
 | `github.com/coreos/go-oidc/v3`            | OIDC discovery + JWKS-backed JWT verification for MCP auth  |
 | `github.com/felixge/httpsnoop`            | Request-log metrics that keep `http.Flusher` working for SSE |
+| `go.opentelemetry.io/otel` (+ contrib)    | Traces and metrics for MCP calls, off until an OTLP endpoint is set |
 
 The Kroger client itself uses only the standard library.
 

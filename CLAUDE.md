@@ -37,8 +37,8 @@ to GitHub Pages.
 - **OAuth redirect URI** must match `KROGER_REDIRECT_URI` exactly; its path is the
   callback route (default `http://localhost:8080/kroger/callback`).
 - **Runtime state** (`data/`, `.env`) is gitignored and stays local.
-- **Dependencies:** go-sdk, go-oidc and httpsnoop only. The Kroger client is standard
-  library.
+- **Dependencies:** go-sdk, go-oidc, httpsnoop and OpenTelemetry (for the template's
+  `internal/telemetry`) only. The Kroger client is standard library.
 - **Tests:** tool behaviour is tested end-to-end in `internal/server` over the SDK's
   in-memory transport against the fake API in `internal/kroger/krogertest`. Extend the
   fake when adding endpoints rather than mocking the client.
